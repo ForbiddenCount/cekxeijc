@@ -47,6 +47,7 @@ async def init_db():
                 status TEXT DEFAULT 'not_ready',
                 deadline TIMESTAMP,
                 notes TEXT,
+                category TEXT DEFAULT 'yokoso',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (advertiser_id) REFERENCES advertisers(id),
                 FOREIGN KEY (user_id) REFERENCES users(telegram_id)
@@ -76,4 +77,9 @@ async def init_db():
                 FOREIGN KEY (promo_id) REFERENCES promos(id)
             );
         """)
+        # Migration: add category column if missing
+        try:
+            await db.execute("ALTER TABLE promos ADD COLUMN category TEXT DEFAULT 'yokoso'")
+        except Exception:
+            pass
         await db.commit()

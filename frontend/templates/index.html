@@ -17,13 +17,17 @@
                 <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
                 <span class="nav-label">Главная</span>
             </button>
-            <button class="nav-btn" data-page="advertisers" onclick="showPage('advertisers')">
-                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg>
-                <span class="nav-label">Контакты</span>
-            </button>
-            <button class="nav-btn" data-page="promos" onclick="showPage('promos')">
+            <button class="nav-btn" data-page="yokoso" onclick="showPage('yokoso')">
                 <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-                <span class="nav-label">Промо</span>
+                <span class="nav-label">Yokoso</span>
+            </button>
+            <button class="nav-btn" data-page="sako" onclick="showPage('sako')">
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+                <span class="nav-label">Sako</span>
+            </button>
+            <button class="nav-btn" data-page="converter" onclick="showPage('converter')">
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                <span class="nav-label">Курс</span>
             </button>
             <button class="nav-btn" data-page="more" onclick="showPage('more')">
                 <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
@@ -69,36 +73,66 @@
             </div>
         </div>
 
-        <!-- Advertisers -->
-        <div class="page" id="page-advertisers">
+        <!-- Promo Yokoso -->
+        <div class="page" id="page-yokoso">
             <div class="header">
-                <h1>Рекламодатели</h1>
-                <button class="btn-primary" onclick="showAddAdvertiser()">+ Добавить</button>
-            </div>
-            <div id="advertisersList" class="list"></div>
-        </div>
-
-        <!-- Promos -->
-        <div class="page" id="page-promos">
-            <div class="header">
-                <h1>Промо</h1>
-                <button class="btn-primary" onclick="showAddPromo()">+ Добавить</button>
+                <h1>Promo Yokoso</h1>
+                <button class="btn-primary" onclick="showAddPromo('yokoso')">+ Добавить</button>
             </div>
             <div class="filter-bar">
-                <select id="promoFilterAdvertiser" onchange="loadPromos()">
-                    <option value="">Все рекламодатели</option>
-                </select>
-                <select id="promoFilterStatus" onchange="filterPromos()">
+                <select id="yokosoFilterStatus" onchange="filterCategoryPromos('yokoso')">
                     <option value="">Все статусы</option>
                     <option value="not_ready">Не готово</option>
                     <option value="in_progress">В процессе</option>
                     <option value="done">Готово</option>
                 </select>
             </div>
-            <div id="promosList" class="list"></div>
+            <div id="yokosoList" class="list"></div>
         </div>
 
-        <!-- More (Profile + Converter + Admin) -->
+        <!-- Promo Sako -->
+        <div class="page" id="page-sako">
+            <div class="header">
+                <h1>Promo Sako</h1>
+                <button class="btn-primary" onclick="showAddPromo('sako')">+ Добавить</button>
+            </div>
+            <div class="filter-bar">
+                <select id="sakoFilterStatus" onchange="filterCategoryPromos('sako')">
+                    <option value="">Все статусы</option>
+                    <option value="not_ready">Не готово</option>
+                    <option value="in_progress">В процессе</option>
+                    <option value="done">Готово</option>
+                </select>
+            </div>
+            <div id="sakoList" class="list"></div>
+        </div>
+
+        <!-- Converter -->
+        <div class="page" id="page-converter">
+            <div class="header">
+                <h1>Конвертер USDT / RUB</h1>
+            </div>
+            <div class="converter-card">
+                <div class="rate-display">
+                    <span class="rate-label">Курс:</span>
+                    <span class="rate-value" id="currentRate">—</span>
+                    <span class="rate-currency">RUB/USDT</span>
+                </div>
+                <div class="converter-inputs">
+                    <div class="input-group">
+                        <label>USDT</label>
+                        <input type="number" id="usdtInput" placeholder="0.00" oninput="convertCurrency('usdt')">
+                    </div>
+                    <div class="swap-icon" onclick="swapCurrency()">⇆</div>
+                    <div class="input-group">
+                        <label>RUB</label>
+                        <input type="number" id="rubInput" placeholder="0.00" oninput="convertCurrency('rub')">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- More (Profile + Notes + Advertisers + Admin) -->
         <div class="page" id="page-more">
             <!-- Profile Section -->
             <div class="profile-card" id="profileCard">
@@ -121,27 +155,13 @@
                 </div>
             </div>
 
-            <!-- Converter Section -->
+            <!-- Advertisers Section -->
             <div class="section">
-                <div class="section-header"><h2>Конвертер USDT / RUB</h2></div>
-                <div class="converter-card">
-                    <div class="rate-display">
-                        <span class="rate-label">Курс:</span>
-                        <span class="rate-value" id="currentRate">—</span>
-                        <span class="rate-currency">RUB/USDT</span>
-                    </div>
-                    <div class="converter-inputs">
-                        <div class="input-group">
-                            <label>USDT</label>
-                            <input type="number" id="usdtInput" placeholder="0.00" oninput="convertCurrency('usdt')">
-                        </div>
-                        <div class="swap-icon" onclick="swapCurrency()">⇆</div>
-                        <div class="input-group">
-                            <label>RUB</label>
-                            <input type="number" id="rubInput" placeholder="0.00" oninput="convertCurrency('rub')">
-                        </div>
-                    </div>
+                <div class="section-header">
+                    <h2>Рекламодатели</h2>
+                    <button class="btn-icon" onclick="showAddAdvertiser()">+</button>
                 </div>
+                <div id="advertisersList" class="list"></div>
             </div>
 
             <!-- Notes Section -->

@@ -123,15 +123,16 @@ function showPage(page) {
 
     switch (page) {
         case "dashboard": loadDashboard(); break;
-        case "advertisers": loadAdvertisers(); break;
-        case "promos": loadPromosPage(); break;
+        case "yokoso": loadCategoryPromos("yokoso"); break;
+        case "sako": loadCategoryPromos("sako"); break;
+        case "converter": loadConverter(); break;
         case "more": loadMore(); break;
     }
 }
 
 async function loadMore() {
     loadProfile();
-    loadConverter();
+    loadAdvertisers();
     if (currentUser?.is_admin) loadAdminPanel();
 }
 
@@ -303,44 +304,37 @@ async function showAdvertiserDetail(id) {
 
 // ── Promos ──
 
-async function loadPromosPage() {
+let currentCategory = "yokoso";
+let categoryPromos = { yokoso: [], sako: [] };
+
+async function loadCategoryPromos(category) {
+    currentCategory = category;
     try {
         advertisers = await api("/api/advertisers");
-        const select = document.getElementById("promoFilterAdvertiser");
-        const currentVal = select.value;
-        select.innerHTML = '<option value="">Все рекламодатели</option>' +
-            advertisers.map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join("");
-        select.value = currentVal;
     } catch (e) {
         console.error(e);
     }
-    await loadPromos();
-}
-
-async function loadPromos() {
-    const advFilter = document.getElementById("promoFilterAdvertiser")?.value;
     try {
-        let url = "/api/promos";
-        if (advFilter) url += `?advertiser_id=${advFilter}`;
-        promos = await api(url);
-        renderPromos();
+        categoryPromos[category] = await api(`/api/promos?category=${category}`);
+        renderCategoryPromos(category);
     } catch (e) {
         console.error(e);
     }
 }
 
-function filterPromos() {
-    renderPromos();
+function filterCategoryPromos(category) {
+    renderCategoryPromos(category);
 }
 
-function renderPromos() {
-    const statusFilter = document.getElementById("promoFilterStatus")?.value;
-    let filtered = promos;
-    if (statusFilter) filtered = promos.filter((p) => p.status === statusFilter);
+function renderCategoryPromos(category) {
+    const statusFilter = document.getElementById(`${category}FilterStatus`)?.value;
+    let filtered = categoryPromos[category] || [];
+    if (statusFilter) filtered = filtered.filter((p) => p.status === statusFilter);
+    promos = categoryPromos[category] || [];
 
-    const container = document.getElementById("promosList");
+    const container = document.getElementById(`${category}List`);
     if (filtered.length === 0) {
-        container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><div class="empty-text">Нет промо-ссылок.<br>Нажмите + Добавить</div></div>';
+        container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><div class="empty-text">Нет промо.<br>Нажмите + Добавить</div></div>';
         return;
     }
 
@@ -376,10 +370,19 @@ function renderPromos() {
     }).join("");
 }
 
-function showAddPromo(existing = null) {
+function showAddPromo(categoryOrExisting = null) {
+    let existing = null;
+    let category = currentCategory;
+    if (typeof categoryOrExisting === "string") {
+        category = categoryOrExisting;
+    } else if (categoryOrExisting && typeof categoryOrExisting === "object") {
+        existing = categoryOrExisting;
+        category = existing.category || currentCategory;
+    }
     const isEdit = !!existing;
     openModal(`
         <div class="modal-title">${isEdit ? "Редактировать промо" : "Новое промо"}</div>
+        <input type="hidden" id="promoCategory" value="${category}">
         <div class="input-group">
             <label>Рекламодатель</label>
             <select id="promoAdvId">
@@ -452,6 +455,7 @@ async function savePromo(id) {
         deadline: document.getElementById("promoDeadline").value?.replace("T", " ") || null,
         status: document.getElementById("promoStatus").value,
         notes: document.getElementById("promoNotes").value.trim(),
+        category: document.getElementById("promoCategory")?.value || currentCategory,
     };
     if (!data.advertiser_id) {
         tg?.showAlert?.("Выберите рекламодателя") || alert("Выберите рекламодателя");
@@ -468,7 +472,7 @@ async function savePromo(id) {
             await api("/api/promos", { method: "POST", body: JSON.stringify(data) });
         }
         closeModal();
-        loadPromos();
+        loadCategoryPromos(currentCategory);
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
     } catch (e) {
         tg?.showAlert?.("Ошибка сохранения") || alert("Ошибка");
@@ -588,7 +592,7 @@ async function changePromoStatus(id, status) {
     try {
         await api(`/api/promos/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
         if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("light");
-        await loadPromos();
+        await loadCategoryPromos(currentCategory);
     } catch (e) {
         console.error(e);
     }
@@ -599,7 +603,7 @@ async function deletePromo(id) {
     try {
         await api(`/api/promos/${id}`, { method: "DELETE" });
         closeModal();
-        loadPromos();
+        loadCategoryPromos(currentCategory);
     } catch (e) {
         console.error(e);
     }
