@@ -17,13 +17,9 @@
                 <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
                 <span class="nav-label">Главная</span>
             </button>
-            <button class="nav-btn" data-page="yokoso" onclick="showPage('yokoso')">
+            <button class="nav-btn" data-page="promo" onclick="showPage('promo')">
                 <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-                <span class="nav-label">Yokoso</span>
-            </button>
-            <button class="nav-btn" data-page="sako" onclick="showPage('sako')">
-                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
-                <span class="nav-label">Sako</span>
+                <span class="nav-label">Promo</span>
             </button>
             <button class="nav-btn" data-page="converter" onclick="showPage('converter')">
                 <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
@@ -41,19 +37,11 @@
                 <h1>Дашборд</h1>
             </div>
             <div class="stats-grid" id="statsGrid">
-                <div class="stat-card accent" onclick="showPage('yokoso')">
-                    <div class="stat-value" id="statYokoso">0/0</div>
-                    <div class="stat-label">Yokoso</div>
-                </div>
-                <div class="stat-card accent" onclick="showPage('sako')">
-                    <div class="stat-value" id="statSako">0/0</div>
-                    <div class="stat-label">Sako</div>
-                </div>
-                <div class="stat-card">
+                <div class="stat-card accent" onclick="showPage('promo')">
                     <div class="stat-value" id="statPromos">0</div>
-                    <div class="stat-label">Промо всего</div>
+                    <div class="stat-label">Промо</div>
                 </div>
-                <div class="stat-card">
+                <div class="stat-card accent" onclick="showPage('promo')">
                     <div class="stat-value" id="statDone">0</div>
                     <div class="stat-label">Готово</div>
                 </div>
@@ -73,50 +61,27 @@
             </div>
         </div>
 
-        <!-- Promo Yokoso -->
-        <div class="page" id="page-yokoso">
+        <!-- Promo (single page, all user promos) -->
+        <div class="page" id="page-promo">
             <div class="header">
-                <h1>Promo Yokoso</h1>
-                <button class="btn-primary" onclick="showAddPromo('yokoso')">+ Добавить</button>
+                <h1>Promo</h1>
+                <button class="btn-primary" onclick="showAddPromo()">+ Добавить</button>
             </div>
             <div class="filter-bar">
-                <input type="text" id="yokosoSearch" placeholder="Поиск..." oninput="filterCategoryPromos('yokoso')" class="search-input">
-                <select id="yokosoFilterStatus" onchange="filterCategoryPromos('yokoso')">
+                <input type="text" id="promoSearch" placeholder="Поиск..." oninput="filterPromos()" class="search-input">
+                <select id="promoFilterStatus" onchange="filterPromos()">
                     <option value="">Все</option>
                     <option value="not_ready">Не готово</option>
                     <option value="in_progress">В процессе</option>
                     <option value="done">Готово</option>
                 </select>
-                <select id="yokosoSort" onchange="filterCategoryPromos('yokoso')">
+                <select id="promoSort" onchange="filterPromos()">
                     <option value="deadline">Дедлайн</option>
                     <option value="created">Дата</option>
                     <option value="status">Статус</option>
                 </select>
             </div>
-            <div id="yokosoList" class="list"></div>
-        </div>
-
-        <!-- Promo Sako -->
-        <div class="page" id="page-sako">
-            <div class="header">
-                <h1>Promo Sako</h1>
-                <button class="btn-primary" onclick="showAddPromo('sako')">+ Добавить</button>
-            </div>
-            <div class="filter-bar">
-                <input type="text" id="sakoSearch" placeholder="Поиск..." oninput="filterCategoryPromos('sako')" class="search-input">
-                <select id="sakoFilterStatus" onchange="filterCategoryPromos('sako')">
-                    <option value="">Все</option>
-                    <option value="not_ready">Не готово</option>
-                    <option value="in_progress">В процессе</option>
-                    <option value="done">Готово</option>
-                </select>
-                <select id="sakoSort" onchange="filterCategoryPromos('sako')">
-                    <option value="deadline">Дедлайн</option>
-                    <option value="created">Дата</option>
-                    <option value="status">Статус</option>
-                </select>
-            </div>
-            <div id="sakoList" class="list"></div>
+            <div id="promoList" class="list"></div>
         </div>
 
         <!-- Converter -->

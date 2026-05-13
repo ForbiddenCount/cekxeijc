@@ -119,8 +119,7 @@ function showPage(page) {
 
     switch (page) {
         case "dashboard": loadDashboard(); break;
-        case "yokoso": loadCategoryPromos("yokoso"); break;
-        case "sako": loadCategoryPromos("sako"); break;
+        case "promo": loadPromos(); break;
         case "converter": loadConverter(); break;
         case "more": loadMore(); break;
     }
@@ -131,10 +130,8 @@ async function loadMore() {
 }
 
 function updateNavBadges(profile) {
-    const yokosoActive = profile.yokoso_total - profile.yokoso_done;
-    const sakoActive = profile.sako_total - profile.sako_done;
-    setBadge("yokoso", yokosoActive);
-    setBadge("sako", sakoActive);
+    const active = profile.promos_count - profile.done_count;
+    setBadge("promo", active);
 }
 
 function setBadge(page, count) {
@@ -166,8 +163,6 @@ async function loadDashboard() {
         const profile = await api("/api/profile");
         document.getElementById("statPromos").textContent = profile.promos_count;
         document.getElementById("statDone").textContent = profile.done_count;
-        document.getElementById("statYokoso").textContent = `${profile.yokoso_done}/${profile.yokoso_total}`;
-        document.getElementById("statSako").textContent = `${profile.sako_done}/${profile.sako_total}`;
         updateNavBadges(profile);
     } catch (e) {
         console.error(e);
@@ -334,28 +329,26 @@ async function showAdvertiserDetail(id) {
 
 // ── Promos ──
 
-let currentCategory = "yokoso";
-let categoryPromos = { yokoso: [], sako: [] };
+let allPromos = [];
 
-async function loadCategoryPromos(category) {
-    currentCategory = category;
+async function loadPromos() {
     try {
-        categoryPromos[category] = await api(`/api/promos?category=${category}`);
-        renderCategoryPromos(category);
+        allPromos = await api("/api/promos");
+        renderPromos();
     } catch (e) {
         console.error(e);
     }
 }
 
-function filterCategoryPromos(category) {
-    renderCategoryPromos(category);
+function filterPromos() {
+    renderPromos();
 }
 
-function renderCategoryPromos(category) {
-    const statusFilter = document.getElementById(`${category}FilterStatus`)?.value;
-    const searchQuery = (document.getElementById(`${category}Search`)?.value || "").toLowerCase().trim();
-    const sortBy = document.getElementById(`${category}Sort`)?.value || "deadline";
-    let filtered = [...(categoryPromos[category] || [])];
+function renderPromos() {
+    const statusFilter = document.getElementById("promoFilterStatus")?.value;
+    const searchQuery = (document.getElementById("promoSearch")?.value || "").toLowerCase().trim();
+    const sortBy = document.getElementById("promoSort")?.value || "deadline";
+    let filtered = [...allPromos];
     if (statusFilter) filtered = filtered.filter((p) => p.status === statusFilter);
     if (searchQuery) filtered = filtered.filter((p) => p.name.toLowerCase().includes(searchQuery) || (p.advertiser_name || "").toLowerCase().includes(searchQuery));
     const statusOrder = { not_ready: 0, in_progress: 1, done: 2 };
@@ -371,9 +364,9 @@ function renderCategoryPromos(category) {
     } else if (sortBy === "status") {
         filtered.sort((a, b) => (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0));
     }
-    promos = categoryPromos[category] || [];
+    promos = allPromos;
 
-    const container = document.getElementById(`${category}List`);
+    const container = document.getElementById("promoList");
     if (filtered.length === 0) {
         container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><div class="empty-text">Нет промо.<br>Нажмите + Добавить</div></div>';
         return;
@@ -423,19 +416,11 @@ function renderCategoryPromos(category) {
     }).join("");
 }
 
-function showAddPromo(categoryOrExisting = null) {
-    let existing = null;
-    let category = currentCategory;
-    if (typeof categoryOrExisting === "string") {
-        category = categoryOrExisting;
-    } else if (categoryOrExisting && typeof categoryOrExisting === "object") {
-        existing = categoryOrExisting;
-        category = existing.category || currentCategory;
-    }
+function showAddPromo(existing = null) {
+    if (typeof existing === "string") existing = null;
     const isEdit = !!existing;
     openModal(`
         <div class="modal-title">${isEdit ? "Редактировать промо" : "Новое промо"}</div>
-        <input type="hidden" id="promoCategory" value="${category}">
         <div class="input-group">
             <label>Рекламодатель</label>
             <input type="text" id="promoAdvertiser" value="${esc(existing?.advertiser_name || "")}" placeholder="Имя / @username (необязательно)">
@@ -505,7 +490,6 @@ async function savePromo(id) {
         deadline: document.getElementById("promoDeadline").value?.replace("T", " ") || null,
         status: document.getElementById("promoStatus").value,
         notes: document.getElementById("promoNotes").value.trim(),
-        category: document.getElementById("promoCategory")?.value || currentCategory,
     };
     if (!data.name) {
         tg?.showAlert?.("Введите название промо") || alert("Введите название промо");
@@ -518,7 +502,7 @@ async function savePromo(id) {
             await api("/api/promos", { method: "POST", body: JSON.stringify(data) });
         }
         closeModal();
-        loadCategoryPromos(currentCategory);
+        loadPromos();
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
     } catch (e) {
         tg?.showAlert?.("Ошибка сохранения") || alert("Ошибка");
@@ -638,7 +622,7 @@ async function changePromoStatus(id, status) {
     try {
         await api(`/api/promos/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
         if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("light");
-        await loadCategoryPromos(currentCategory);
+        await loadPromos();
     } catch (e) {
         console.error(e);
     }
@@ -649,7 +633,7 @@ async function deletePromo(id) {
     try {
         await api(`/api/promos/${id}`, { method: "DELETE" });
         closeModal();
-        loadCategoryPromos(currentCategory);
+        loadPromos();
     } catch (e) {
         console.error(e);
     }
