@@ -6,13 +6,15 @@ let advertisers = [];
 let promos = [];
 let exchangeRate = 92;
 
-// ── Particles ──
+// ── Particles (optimized) ──
 
 function initParticles() {
     const canvas = document.getElementById("particleCanvas");
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: true });
     let w, h, particles;
+    const isMobile = window.innerWidth < 500;
+    const density = isMobile ? 10000 : 7000;
 
     function resize() {
         w = canvas.width = window.innerWidth;
@@ -21,17 +23,17 @@ function initParticles() {
 
     function createParticles() {
         particles = [];
-        const count = Math.floor((w * h) / 6000);
+        const count = Math.min(Math.floor((w * h) / density), isMobile ? 80 : 150);
         for (let i = 0; i < count; i++) {
             particles.push({
                 x: Math.random() * w,
                 y: Math.random() * h,
-                r: Math.random() * 5 + 1.2,
-                dx: (Math.random() - 0.5) * 0.3,
-                dy: (Math.random() - 0.5) * 0.3,
-                alpha: Math.random() * 0.6 + 0.25,
+                r: Math.random() * 4 + 1,
+                dx: (Math.random() - 0.5) * 0.25,
+                dy: (Math.random() - 0.5) * 0.25,
+                alpha: Math.random() * 0.5 + 0.2,
                 pulse: Math.random() * Math.PI * 2,
-                glow: Math.random() * 14 + 6,
+                glow: Math.random() * 10 + 4,
             });
         }
     }
@@ -41,20 +43,18 @@ function initParticles() {
         for (const p of particles) {
             p.x += p.dx;
             p.y += p.dy;
-            p.pulse += 0.012;
+            p.pulse += 0.01;
             if (p.x < 0) p.x = w;
             if (p.x > w) p.x = 0;
             if (p.y < 0) p.y = h;
             if (p.y > h) p.y = 0;
-            const a = p.alpha + Math.sin(p.pulse) * 0.2;
-            const al = Math.max(0, a);
-
+            const al = Math.max(0, p.alpha + Math.sin(p.pulse) * 0.15);
             ctx.save();
             ctx.shadowBlur = p.glow;
-            ctx.shadowColor = `rgba(139, 92, 246, ${al * 0.8})`;
+            ctx.shadowColor = `rgba(139,92,246,${al * 0.7})`;
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(160, 120, 255, ${al})`;
+            ctx.fillStyle = `rgba(160,120,255,${al})`;
             ctx.fill();
             ctx.restore();
         }
@@ -64,7 +64,8 @@ function initParticles() {
     resize();
     createParticles();
     draw();
-    window.addEventListener("resize", () => { resize(); createParticles(); });
+    let resizeTimer;
+    window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { resize(); createParticles(); }, 200); });
 }
 
 // ── Init ──

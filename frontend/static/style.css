@@ -7,8 +7,8 @@
     --accent-light: #A78BFA;
     --accent-dim: rgba(139, 92, 246, 0.15);
     --accent-glow: rgba(139, 92, 246, 0.25);
-    --card-bg: rgba(10, 10, 14, 0.96);
-    --card-bg-accent: rgba(139, 92, 246, 0.1);
+    --card-bg: rgba(6, 6, 10, 0.85);
+    --card-bg-accent: rgba(139, 92, 246, 0.08);
     --border: rgba(255, 255, 255, 0.08);
     --border-accent: rgba(139, 92, 246, 0.25);
     --radius: 16px;
@@ -41,6 +41,7 @@ body {
     height: 100%;
     z-index: 0;
     pointer-events: none;
+    will-change: transform;
 }
 
 #app {
@@ -282,11 +283,15 @@ body {
     text-align: center;
     cursor: pointer;
     transition: all 0.2s;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
 }
 
 .stat-card.accent {
     border-color: var(--border-accent);
-    background: rgba(139, 92, 246, 0.08);
+    background: rgba(139, 92, 246, 0.06);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
 }
 
 .stat-card.warning {
@@ -343,6 +348,8 @@ body {
     cursor: pointer;
     transition: all 0.2s;
     -webkit-tap-highlight-color: transparent;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
 }
 
 .card:active {
@@ -513,6 +520,8 @@ body {
     font-size: 13px;
     -webkit-appearance: none;
     appearance: none;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
 }
 
 .search-input {
@@ -526,6 +535,8 @@ body {
     font-family: inherit;
     outline: none;
     transition: border-color 0.2s;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
 }
 
 .search-input:focus {
@@ -542,6 +553,8 @@ body {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     padding: 24px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
 }
 
 .rate-display {
@@ -605,6 +618,8 @@ body {
     padding: 28px;
     text-align: center;
     margin-bottom: 24px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
 }
 
 .profile-avatar {
@@ -679,7 +694,7 @@ body {
 .input-group textarea,
 .input-group select {
     width: 100%;
-    background: rgba(8, 8, 12, 0.95);
+    background: rgba(6, 6, 10, 0.9);
     color: var(--text);
     border: 1px solid var(--border);
     padding: 14px;
@@ -688,6 +703,8 @@ body {
     font-family: inherit;
     outline: none;
     transition: border-color 0.2s;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .input-group input:focus,
