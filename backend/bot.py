@@ -22,16 +22,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = user.id
     first_name = user.first_name or "User"
 
-    # Step 1: Show ID and ask to confirm
     keyboard = InlineKeyboardMarkup(
-        [[InlineKeyboardButton("✅ Подтвердить ID", callback_data="confirm_id")]]
+        [[InlineKeyboardButton("Подтвердить ID", callback_data="confirm_id")]]
     )
     await update.message.reply_text(
-        f"<b>Promo Empire</b>\n"
-        f"Менеджер рекламных кампаний\n\n"
-        f"👤 <b>{first_name}</b>\n"
-        f"🆔 <code>{user_id}</code>\n\n"
-        f"Для доступа к приложению подтвердите свой ID.",
+        f"<b>Promo Empire</b>\n\n"
+        f"👤 {first_name} · <code>{user_id}</code>\n\n"
+        f"Подтвердите ID для доступа.",
         reply_markup=keyboard,
         parse_mode="HTML",
     )
@@ -39,28 +36,28 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     user = query.from_user
     user_id = user.id
 
-    # Send ID as separate message (like Editing Bot)
-    await query.message.reply_text(
-        f"ID: <code>{user_id}</code>",
+    await query.answer(f"ID подтверждён: {user_id}", show_alert=False)
+
+    # Edit original message to show confirmed state
+    await query.edit_message_text(
+        f"<b>Promo Empire</b>\n\n"
+        f"👤 {user.first_name or 'User'} · <code>{user_id}</code>\n"
+        f"✓ ID подтверждён",
         parse_mode="HTML",
     )
 
-    # Now show the app button
     keyboard = InlineKeyboardMarkup(
         [[InlineKeyboardButton("PROMO", web_app=WebAppInfo(url=WEBAPP_URL))]]
     )
     await query.message.reply_text(
-        f"<b>Promo Empire</b>\n"
-        f"Управление промо-кампаниями\n\n"
-        f"▸ Yokoso & Sako промо\n"
-        f"▸ Дедлайны и статусы\n"
+        f"<b>Менеджер промо-кампаний</b>\n\n"
+        f"▸ Управление промо и дедлайнами\n"
         f"▸ Конвертер USDT/RUB\n"
-        f"▸ Уведомления\n\n"
-        f"Нажмите ниже, чтобы открыть 👇",
+        f"▸ Уведомления о сроках\n\n"
+        f"Открыть 👇",
         reply_markup=keyboard,
         parse_mode="HTML",
     )
@@ -87,12 +84,6 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.effective_user.id
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
-        adv = await db.execute(
-            "SELECT COUNT(*) as cnt FROM advertisers WHERE user_id = ?",
-            (telegram_id,),
-        )
-        adv_count = (await adv.fetchone())["cnt"]
-
         promo = await db.execute(
             "SELECT COUNT(*) as cnt FROM promos WHERE user_id = ?",
             (telegram_id,),
@@ -112,12 +103,11 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         in_progress_count = (await in_progress.fetchone())["cnt"]
 
     await update.message.reply_text(
-        f"📊 Твоя статистика:\n\n"
-        f"👤 Рекламодателей: {adv_count}\n"
-        f"🔗 Промо всего: {promo_count}\n"
-        f"✅ Готово: {done_count}\n"
-        f"⏳ В процессе: {in_progress_count}\n"
-        f"❌ Не готово: {promo_count - done_count - in_progress_count}"
+        f"📊 Статистика:\n\n"
+        f"Промо: {promo_count}\n"
+        f"Готово: {done_count}\n"
+        f"В процессе: {in_progress_count}\n"
+        f"Не готово: {promo_count - done_count - in_progress_count}"
     )
 
 
@@ -155,30 +145,45 @@ async def send_reminder_notifications(application: Application):
 
 
 async def check_deadlines(application: Application):
+    notified = set()
     while True:
         try:
-            now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             async with aiosqlite.connect(DB_PATH) as db:
                 db.row_factory = aiosqlite.Row
                 rows = await db.execute(
-                    "SELECT p.*, a.name as advertiser_name FROM promos p LEFT JOIN advertisers a ON p.advertiser_id = a.id WHERE p.status != 'done' AND p.deadline IS NOT NULL AND p.deadline <= ? AND p.deadline > datetime(?, '-1 hour')",
-                    (now, now),
+                    "SELECT * FROM promos WHERE status != 'done' AND deadline IS NOT NULL"
                 )
-                promos = await rows.fetchall()
-                for promo in promos:
+                promos_list = await rows.fetchall()
+                now = datetime.now(timezone.utc)
+                for promo in promos_list:
                     try:
-                        text = (
-                            f"⚠️ Дедлайн наступил!\n\n"
-                            f"📋 Промо: {promo['name']}\n"
-                            f"👤 Рекламодатель: {promo['advertiser_name'] or '—'}\n"
-                            f"📅 Дедлайн: {promo['deadline']}\n"
-                            f"Статус: {'⏳ В процессе' if promo['status'] == 'in_progress' else '❌ Не готово'}"
-                        )
-                        await application.bot.send_message(
-                            chat_id=promo["user_id"], text=text
-                        )
+                        dl = datetime.fromisoformat(promo["deadline"].replace(" ", "T"))
+                        diff = (dl - now).total_seconds()
+                        key_24 = f"{promo['id']}_24h"
+                        key_1 = f"{promo['id']}_1h"
+                        key_over = f"{promo['id']}_over"
+                        if 0 < diff <= 86400 and key_24 not in notified:
+                            hours = int(diff // 3600)
+                            await application.bot.send_message(
+                                chat_id=promo["user_id"],
+                                text=f"⏰ До дедлайна ~{hours}ч\n{promo['name']}",
+                            )
+                            notified.add(key_24)
+                        elif 0 < diff <= 3600 and key_1 not in notified:
+                            mins = int(diff // 60)
+                            await application.bot.send_message(
+                                chat_id=promo["user_id"],
+                                text=f"🔴 До дедлайна {mins} мин!\n{promo['name']}",
+                            )
+                            notified.add(key_1)
+                        elif diff <= 0 and key_over not in notified:
+                            await application.bot.send_message(
+                                chat_id=promo["user_id"],
+                                text=f"⚠️ Дедлайн прошёл!\n{promo['name']}",
+                            )
+                            notified.add(key_over)
                     except Exception as e:
-                        logger.error(f"Failed deadline notification for promo {promo['id']}: {e}")
+                        logger.error(f"Deadline notify error promo {promo['id']}: {e}")
         except Exception as e:
             logger.error(f"Deadline check error: {e}")
         await asyncio.sleep(60)
@@ -192,17 +197,14 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         users = await (await db.execute("SELECT COUNT(*) as cnt FROM users")).fetchone()
-        advs = await (await db.execute("SELECT COUNT(*) as cnt FROM advertisers")).fetchone()
         promos = await (await db.execute("SELECT COUNT(*) as cnt FROM promos")).fetchone()
         done = await (await db.execute("SELECT COUNT(*) as cnt FROM promos WHERE status = 'done'")).fetchone()
     await update.message.reply_text(
-        f"🔧 Админ-панель\n\n"
+        f"🔧 Система\n\n"
         f"Пользователей: {users['cnt']}\n"
-        f"Рекламодателей: {advs['cnt']}\n"
-        f"Промо всего: {promos['cnt']}\n"
+        f"Промо: {promos['cnt']}\n"
         f"Выполнено: {done['cnt']}\n\n"
-        f"Команды:\n"
-        f"/broadcast <текст> — рассылка всем"
+        f"/broadcast <текст> — рассылка"
     )
 
 
