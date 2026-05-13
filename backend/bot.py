@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://localhost:8000")
+ADMIN_IDS = [1977007206, 1322034030]
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -42,13 +43,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
+    text = (
         "📌 Команды:\n"
         "/start — Открыть приложение\n"
         "/help — Показать помощь\n"
         "/stats — Краткая статистика\n\n"
         "Всё управление — через мини-приложение 👇"
     )
+    if update.effective_user.id in ADMIN_IDS:
+        text += (
+            "\n\n🔧 Админ-команды:\n"
+            "/admin — Статистика системы\n"
+            "/broadcast <текст> — Рассылка всем"
+        )
+    await update.message.reply_text(text)
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -152,6 +160,53 @@ async def check_deadlines(application: Application):
         await asyncio.sleep(60)
 
 
+async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telegram_id = update.effective_user.id
+    if telegram_id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ Доступ запрещён.")
+        return
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        users = await (await db.execute("SELECT COUNT(*) as cnt FROM users")).fetchone()
+        advs = await (await db.execute("SELECT COUNT(*) as cnt FROM advertisers")).fetchone()
+        promos = await (await db.execute("SELECT COUNT(*) as cnt FROM promos")).fetchone()
+        done = await (await db.execute("SELECT COUNT(*) as cnt FROM promos WHERE status = 'done'")).fetchone()
+    await update.message.reply_text(
+        f"🔧 Админ-панель\n\n"
+        f"Пользователей: {users['cnt']}\n"
+        f"Рекламодателей: {advs['cnt']}\n"
+        f"Промо всего: {promos['cnt']}\n"
+        f"Выполнено: {done['cnt']}\n\n"
+        f"Команды:\n"
+        f"/broadcast <текст> — рассылка всем"
+    )
+
+
+async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telegram_id = update.effective_user.id
+    if telegram_id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ Доступ запрещён.")
+        return
+    text = " ".join(context.args) if context.args else ""
+    if not text:
+        await update.message.reply_text("Использование: /broadcast <текст сообщения>")
+        return
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        rows = await db.execute("SELECT telegram_id FROM users")
+        users = await rows.fetchall()
+    sent = 0
+    failed = 0
+    for user in users:
+        try:
+            await update.get_bot().send_message(chat_id=user["telegram_id"], text=text)
+            sent += 1
+        except Exception as e:
+            logger.error(f"Broadcast to {user['telegram_id']} failed: {e}")
+            failed += 1
+    await update.message.reply_text(f"Рассылка завершена.\nОтправлено: {sent}\nОшибок: {failed}")
+
+
 def main():
     if not BOT_TOKEN:
         logger.error("BOT_TOKEN not set!")
@@ -162,6 +217,8 @@ def main():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("admin", admin_command))
+    application.add_handler(CommandHandler("broadcast", broadcast_command))
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)

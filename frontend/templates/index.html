@@ -31,6 +31,10 @@
                 <span class="nav-icon">⊙</span>
                 <span class="nav-label">Профиль</span>
             </button>
+            <button class="nav-btn" data-page="admin" onclick="showPage('admin')" id="adminNavBtn" style="display:none">
+                <span class="nav-icon">⬡</span>
+                <span class="nav-label">Админ</span>
+            </button>
         </nav>
 
         <!-- Dashboard -->
@@ -152,6 +156,37 @@
             <div class="section">
                 <div class="section-header"><h2>Все заметки</h2></div>
                 <div id="allNotesList" class="list"></div>
+            </div>
+        </div>
+
+        <!-- Admin Panel -->
+        <div class="page" id="page-admin">
+            <div class="header">
+                <h1>Админ-панель</h1>
+            </div>
+            <div class="stats-grid" id="adminStatsGrid">
+                <div class="stat-card">
+                    <div class="stat-value" id="adminStatUsers">0</div>
+                    <div class="stat-label">Пользователей</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="adminStatAdvertisers">0</div>
+                    <div class="stat-label">Рекламодателей</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="adminStatPromos">0</div>
+                    <div class="stat-label">Промо всего</div>
+                </div>
+                <div class="stat-card accent">
+                    <div class="stat-value" id="adminStatDone">0</div>
+                    <div class="stat-label">Готово</div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-header">
+                    <h2>Пользователи</h2>
+                </div>
+                <div id="adminUsersList" class="list"></div>
             </div>
         </div>
 

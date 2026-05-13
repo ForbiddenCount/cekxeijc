@@ -42,6 +42,10 @@ async function api(path, options = {}) {
 async function auth() {
     try {
         currentUser = await api("/api/auth", { method: "POST" });
+        if (currentUser && currentUser.is_admin) {
+            const adminBtn = document.getElementById("adminNavBtn");
+            if (adminBtn) adminBtn.style.display = "";
+        }
     } catch (e) {
         console.error("Auth failed:", e);
     }
@@ -61,6 +65,7 @@ function showPage(page) {
         case "promos": loadPromosPage(); break;
         case "converter": loadConverter(); break;
         case "profile": loadProfile(); break;
+        case "admin": loadAdminPanel(); break;
     }
 }
 
@@ -638,6 +643,83 @@ function statusLabel(status) {
         case "done": return "● Готово";
         case "in_progress": return "○ В процессе";
         default: return "— Не готово";
+    }
+}
+
+// ── Admin Panel ──
+
+async function loadAdminPanel() {
+    if (!currentUser || !currentUser.is_admin) return;
+    try {
+        const stats = await api("/api/admin/stats");
+        document.getElementById("adminStatUsers").textContent = stats.total_users;
+        document.getElementById("adminStatAdvertisers").textContent = stats.total_advertisers;
+        document.getElementById("adminStatPromos").textContent = stats.total_promos;
+        document.getElementById("adminStatDone").textContent = stats.done_promos;
+    } catch (e) {
+        console.error(e);
+    }
+    try {
+        const users = await api("/api/admin/users");
+        const container = document.getElementById("adminUsersList");
+        if (!users.length) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">◎</div><div class="empty-text">Нет пользователей</div></div>';
+            return;
+        }
+        container.innerHTML = users.map(u => `
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">${esc(u.first_name || "")} ${esc(u.last_name || "")}</div>
+                    <div class="card-actions">
+                        <button class="btn-icon" onclick="adminViewUser(${u.telegram_id})">◇</button>
+                        <button class="btn-icon danger" onclick="adminDeleteUser(${u.telegram_id})">✕</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <span class="card-meta">ID: ${u.telegram_id}</span>
+                    ${u.username ? `<span class="card-meta">@${esc(u.username)}</span>` : ""}
+                    <span class="card-meta">Рекл: ${u.advertisers_count} · Промо: ${u.promos_count} · Готово: ${u.done_count}</span>
+                </div>
+            </div>
+        `).join("");
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function adminViewUser(telegramId) {
+    try {
+        const [advs, prms] = await Promise.all([
+            api(`/api/admin/users/${telegramId}/advertisers`),
+            api(`/api/admin/users/${telegramId}/promos`),
+        ]);
+        let html = `<div class="modal-header"><h3>Данные пользователя ${telegramId}</h3></div>`;
+        html += `<div class="section"><h4 style="margin-bottom:8px">Рекламодатели (${advs.length})</h4>`;
+        if (advs.length) {
+            html += advs.map(a => `<div class="card"><div class="card-header"><div class="card-title">${esc(a.name)}</div></div><div class="card-body">${a.username ? `<span class="card-meta">@${esc(a.username)}</span>` : ""}${a.link ? `<span class="card-meta">${esc(a.link)}</span>` : ""}</div></div>`).join("");
+        } else {
+            html += '<div class="empty-state"><div class="empty-text">Нет рекламодателей</div></div>';
+        }
+        html += `</div><div class="section"><h4 style="margin-bottom:8px">Промо (${prms.length})</h4>`;
+        if (prms.length) {
+            html += prms.map(p => `<div class="card"><div class="card-header"><div class="card-title">${esc(p.name)}</div><span class="badge badge-${p.status}">${statusLabel(p.status)}</span></div><div class="card-body">${p.advertiser_name ? `<span class="card-meta">${esc(p.advertiser_name)}</span>` : ""}${p.price_usdt ? `<span class="card-meta">${p.price_usdt} USDT</span>` : ""}${p.deadline ? `<span class="card-meta">${formatDate(p.deadline)}</span>` : ""}</div></div>`).join("");
+        } else {
+            html += '<div class="empty-state"><div class="empty-text">Нет промо</div></div>';
+        }
+        html += `</div><button class="btn-secondary" onclick="closeModal()" style="width:100%;margin-top:12px">Закрыть</button>`;
+        openModal(html);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function adminDeleteUser(telegramId) {
+    if (!confirm(`Удалить пользователя ${telegramId} и все его данные?`)) return;
+    try {
+        await api(`/api/admin/users/${telegramId}`, { method: "DELETE" });
+        loadAdminPanel();
+    } catch (e) {
+        console.error(e);
     }
 }
 

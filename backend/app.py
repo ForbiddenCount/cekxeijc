@@ -16,6 +16,7 @@ from fastapi.templating import Jinja2Templates
 from .database import DB_PATH, get_db, init_db
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+ADMIN_IDS = [1977007206, 1322034030]
 
 
 def verify_telegram_data(init_data: str) -> dict | None:
@@ -55,6 +56,16 @@ async def get_current_user(x_telegram_init_data: str = Header(default="")):
     user = verify_telegram_data(x_telegram_init_data)
     if not user:
         raise HTTPException(401, "Invalid Telegram init data")
+    return user
+
+
+def is_admin(user: dict) -> bool:
+    return user.get("id", 0) in ADMIN_IDS
+
+
+async def require_admin(user=Depends(get_current_user)):
+    if not is_admin(user):
+        raise HTTPException(403, "Admin access required")
     return user
 
 
@@ -106,7 +117,9 @@ async def auth_user(user=Depends(get_current_user), db=Depends(get_db)):
             "SELECT * FROM users WHERE telegram_id = ?", (telegram_id,)
         )
         row = await existing.fetchone()
-    return dict(row)
+    result = dict(row)
+    result["is_admin"] = is_admin(user)
+    return result
 
 
 @app.get("/api/profile")
@@ -396,3 +409,68 @@ async def convert_price(amount: float, direction: str = "usdt_to_rub"):
         return {"result": round(amount * rate, 2), "rate": rate, "currency": "RUB"}
     else:
         return {"result": round(amount / rate, 4), "rate": rate, "currency": "USDT"}
+
+
+# ── Admin Panel ──
+
+@app.get("/api/admin/users")
+async def admin_list_users(user=Depends(require_admin), db=Depends(get_db)):
+    rows = await db.execute(
+        "SELECT u.*, "
+        "(SELECT COUNT(*) FROM advertisers WHERE user_id = u.telegram_id) as advertisers_count, "
+        "(SELECT COUNT(*) FROM promos WHERE user_id = u.telegram_id) as promos_count, "
+        "(SELECT COUNT(*) FROM promos WHERE user_id = u.telegram_id AND status = 'done') as done_count "
+        "FROM users u ORDER BY u.created_at DESC"
+    )
+    return [dict(r) for r in await rows.fetchall()]
+
+
+@app.get("/api/admin/users/{telegram_id}/advertisers")
+async def admin_user_advertisers(telegram_id: int, user=Depends(require_admin), db=Depends(get_db)):
+    rows = await db.execute(
+        "SELECT * FROM advertisers WHERE user_id = ? ORDER BY created_at DESC",
+        (telegram_id,),
+    )
+    return [dict(r) for r in await rows.fetchall()]
+
+
+@app.get("/api/admin/users/{telegram_id}/promos")
+async def admin_user_promos(telegram_id: int, user=Depends(require_admin), db=Depends(get_db)):
+    rows = await db.execute(
+        "SELECT p.*, a.name as advertiser_name FROM promos p "
+        "LEFT JOIN advertisers a ON p.advertiser_id = a.id "
+        "WHERE p.user_id = ? ORDER BY p.created_at DESC",
+        (telegram_id,),
+    )
+    return [dict(r) for r in await rows.fetchall()]
+
+
+@app.delete("/api/admin/users/{telegram_id}")
+async def admin_delete_user(telegram_id: int, user=Depends(require_admin), db=Depends(get_db)):
+    await db.execute("DELETE FROM reminders WHERE user_id = ?", (telegram_id,))
+    await db.execute("DELETE FROM notes WHERE user_id = ?", (telegram_id,))
+    await db.execute("DELETE FROM promos WHERE user_id = ?", (telegram_id,))
+    await db.execute("DELETE FROM advertisers WHERE user_id = ?", (telegram_id,))
+    await db.execute("DELETE FROM users WHERE telegram_id = ?", (telegram_id,))
+    await db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/admin/stats")
+async def admin_stats(user=Depends(require_admin), db=Depends(get_db)):
+    users = await (await db.execute("SELECT COUNT(*) as cnt FROM users")).fetchone()
+    advertisers = await (await db.execute("SELECT COUNT(*) as cnt FROM advertisers")).fetchone()
+    promos = await (await db.execute("SELECT COUNT(*) as cnt FROM promos")).fetchone()
+    done = await (await db.execute("SELECT COUNT(*) as cnt FROM promos WHERE status = 'done'")).fetchone()
+    in_progress = await (await db.execute("SELECT COUNT(*) as cnt FROM promos WHERE status = 'in_progress'")).fetchone()
+    notes = await (await db.execute("SELECT COUNT(*) as cnt FROM notes")).fetchone()
+    reminders = await (await db.execute("SELECT COUNT(*) as cnt FROM reminders")).fetchone()
+    return {
+        "total_users": users["cnt"],
+        "total_advertisers": advertisers["cnt"],
+        "total_promos": promos["cnt"],
+        "done_promos": done["cnt"],
+        "in_progress_promos": in_progress["cnt"],
+        "total_notes": notes["cnt"],
+        "total_reminders": reminders["cnt"],
+    }
