@@ -92,4 +92,24 @@ async def init_db():
             await db.execute("UPDATE promos SET advertiser_name = (SELECT a.name FROM advertisers a WHERE a.id = promos.advertiser_id) WHERE advertiser_name = '' AND advertiser_id > 0")
         except Exception:
             pass
+        # Migration: add tags column to promos
+        try:
+            await db.execute("ALTER TABLE promos ADD COLUMN tags TEXT DEFAULT ''")
+        except Exception:
+            pass
+        # Templates table
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS promo_templates (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                link TEXT DEFAULT '',
+                price_usdt REAL,
+                advertiser_name TEXT DEFAULT '',
+                tags TEXT DEFAULT '',
+                notes TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(telegram_id)
+            )
+        """)
         await db.commit()

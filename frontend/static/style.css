@@ -502,6 +502,19 @@ body {
     opacity: 0.6;
 }
 
+/* ── Tag badges ── */
+.tag-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    background: var(--accent-dim);
+    color: var(--accent-light);
+    border: 1px solid var(--border-accent);
+    letter-spacing: 0.3px;
+}
+
 /* ── Filter bar ── */
 .filter-bar {
     display: flex;

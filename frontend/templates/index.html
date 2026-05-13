@@ -65,7 +65,11 @@
         <div class="page" id="page-promo">
             <div class="header">
                 <h1>Promo</h1>
-                <button class="btn-primary" onclick="showAddPromo()">+ Добавить</button>
+                <div style="display:flex;gap:6px;">
+                    <button class="btn-primary btn-sm" onclick="showTemplates()">Шаблоны</button>
+                    <button class="btn-primary btn-sm" onclick="exportPromos()">Экспорт</button>
+                    <button class="btn-primary" onclick="showAddPromo()">+ Добавить</button>
+                </div>
             </div>
             <div class="filter-bar">
                 <input type="text" id="promoSearch" placeholder="Поиск..." oninput="filterPromos()" class="search-input">
@@ -80,6 +84,16 @@
                     <option value="created">Дата</option>
                     <option value="status">Статус</option>
                 </select>
+            </div>
+            <div class="filter-bar" style="margin-top:-8px;">
+                <input type="text" id="promoTagFilter" placeholder="Фильтр по тэгу..." oninput="filterPromos()" class="search-input" style="flex:0.5;">
+                <button class="btn-secondary btn-sm" id="bulkSelectBtn" onclick="toggleBulkSelect()" style="white-space:nowrap;">Выбрать</button>
+            </div>
+            <div id="bulkActions" style="display:none;margin-bottom:10px;gap:6px;flex-wrap:wrap;" class="filter-bar">
+                <button class="btn-sm btn-primary" onclick="bulkChangeStatus('done')">Готово</button>
+                <button class="btn-sm btn-secondary" onclick="bulkChangeStatus('in_progress')">В процессе</button>
+                <button class="btn-sm btn-secondary" onclick="bulkChangeStatus('not_ready')">Не готово</button>
+                <span id="bulkCount" style="font-size:12px;color:var(--text-secondary);align-self:center;">0 выбрано</span>
             </div>
             <div id="promoList" class="list"></div>
         </div>

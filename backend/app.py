@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import time
 from contextlib import asynccontextmanager
 from urllib.parse import parse_qs, unquote
@@ -9,7 +10,7 @@ from urllib.parse import parse_qs, unquote
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -248,6 +249,49 @@ async def delete_advertiser(adv_id: int, user=Depends(get_current_user), db=Depe
 
 # ── Promos ──
 
+@app.patch("/api/promos/bulk-status")
+async def bulk_status(request: Request, user=Depends(get_current_user), db=Depends(get_db)):
+    data = await request.json()
+    ids = data.get("ids", [])
+    status = data.get("status", "")
+    if not ids or status not in ("not_ready", "in_progress", "done"):
+        raise HTTPException(400, "Invalid ids or status")
+    telegram_id = user.get("id", 0)
+    placeholders = ",".join("?" for _ in ids)
+    await db.execute(
+        f"UPDATE promos SET status = ? WHERE id IN ({placeholders}) AND user_id = ?",
+        [status] + ids + [telegram_id],
+    )
+    await db.commit()
+    return {"ok": True, "updated": len(ids)}
+
+
+@app.get("/api/promos/export")
+async def export_promos(user=Depends(get_current_user), db=Depends(get_db)):
+    telegram_id = user.get("id", 0)
+    rows = await db.execute(
+        "SELECT * FROM promos WHERE user_id = ? ORDER BY deadline ASC NULLS LAST, created_at DESC",
+        (telegram_id,),
+    )
+    promos_list = [dict(r) for r in await rows.fetchall()]
+    status_map = {"not_ready": "Не готово", "in_progress": "В процессе", "done": "Готово"}
+    lines = [f"Промо ({len(promos_list)} шт.)", "=" * 30]
+    for p in promos_list:
+        lines.append(f"\n{p['name']}")
+        if p.get("advertiser_name"):
+            lines.append(f"  Рекламодатель: {p['advertiser_name']}")
+        lines.append(f"  Статус: {status_map.get(p['status'], p['status'])}")
+        if p.get("deadline"):
+            lines.append(f"  Дедлайн: {p['deadline']}")
+        if p.get("price_usdt"):
+            lines.append(f"  Цена: ${p['price_usdt']} USDT")
+        if p.get("link"):
+            lines.append(f"  Ссылка: {p['link']}")
+        if p.get("tags"):
+            lines.append(f"  Тэги: {p['tags']}")
+    return PlainTextResponse("\n".join(lines))
+
+
 @app.get("/api/promos")
 async def list_promos(
     category: str | None = None,
@@ -270,7 +314,7 @@ async def create_promo(request: Request, user=Depends(get_current_user), db=Depe
     data = await request.json()
     telegram_id = user.get("id", 0)
     await db.execute(
-        "INSERT INTO promos (user_id, name, link, price_usdt, status, deadline, notes, category, advertiser_name, advertiser_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
+        "INSERT INTO promos (user_id, name, link, price_usdt, status, deadline, notes, category, advertiser_name, advertiser_id, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
         (
             telegram_id,
             data["name"],
@@ -281,6 +325,7 @@ async def create_promo(request: Request, user=Depends(get_current_user), db=Depe
             data.get("notes", ""),
             data.get("category", "yokoso"),
             data.get("advertiser_name", ""),
+            data.get("tags", ""),
         ),
     )
     await db.commit()
@@ -293,7 +338,7 @@ async def update_promo(promo_id: int, request: Request, user=Depends(get_current
     data = await request.json()
     telegram_id = user.get("id", 0)
     await db.execute(
-        "UPDATE promos SET name=?, link=?, price_usdt=?, status=?, deadline=?, notes=?, category=?, advertiser_name=? WHERE id=? AND user_id=?",
+        "UPDATE promos SET name=?, link=?, price_usdt=?, status=?, deadline=?, notes=?, category=?, advertiser_name=?, tags=? WHERE id=? AND user_id=?",
         (
             data["name"],
             data.get("link", ""),
@@ -303,6 +348,7 @@ async def update_promo(promo_id: int, request: Request, user=Depends(get_current
             data.get("notes", ""),
             data.get("category", "yokoso"),
             data.get("advertiser_name", ""),
+            data.get("tags", ""),
             promo_id,
             telegram_id,
         ),
@@ -471,6 +517,68 @@ async def convert_price(amount: float, direction: str = "usdt_to_rub"):
         return {"result": round(amount * rate, 2), "rate": rate, "currency": "RUB"}
     else:
         return {"result": round(amount / rate, 4), "rate": rate, "currency": "USDT"}
+
+
+# ── Templates ──
+
+@app.get("/api/templates")
+async def list_templates(user=Depends(get_current_user), db=Depends(get_db)):
+    telegram_id = user.get("id", 0)
+    rows = await db.execute(
+        "SELECT * FROM promo_templates WHERE user_id = ? ORDER BY created_at DESC",
+        (telegram_id,),
+    )
+    return [dict(r) for r in await rows.fetchall()]
+
+
+@app.post("/api/templates")
+async def create_template(request: Request, user=Depends(get_current_user), db=Depends(get_db)):
+    data = await request.json()
+    telegram_id = user.get("id", 0)
+    await db.execute(
+        "INSERT INTO promo_templates (user_id, name, link, price_usdt, advertiser_name, tags, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (telegram_id, data["name"], data.get("link", ""), data.get("price_usdt"), data.get("advertiser_name", ""), data.get("tags", ""), data.get("notes", "")),
+    )
+    await db.commit()
+    row = await db.execute("SELECT * FROM promo_templates WHERE id = last_insert_rowid()")
+    return dict(await row.fetchone())
+
+
+@app.delete("/api/templates/{template_id}")
+async def delete_template(template_id: int, user=Depends(get_current_user), db=Depends(get_db)):
+    telegram_id = user.get("id", 0)
+    await db.execute("DELETE FROM promo_templates WHERE id = ? AND user_id = ?", (template_id, telegram_id))
+    await db.commit()
+    return {"ok": True}
+
+
+# ── TikTok sound info ──
+
+@app.post("/api/tiktok-sound")
+async def tiktok_sound_info(request: Request):
+    data = await request.json()
+    url = data.get("url", "")
+    if not url or "tiktok.com" not in url:
+        raise HTTPException(400, "Invalid TikTok URL")
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"})
+            html = resp.text
+            title_match = re.search(r'<title[^>]*>([^<]+)</title>', html, re.IGNORECASE)
+            title = title_match.group(1).strip() if title_match else ""
+            desc_match = re.search(r'<meta[^>]*name=["\']description["\'][^>]*content=["\']([^"\']+)["\']', html, re.IGNORECASE)
+            description = desc_match.group(1).strip() if desc_match else ""
+            name = ""
+            author = ""
+            if " - " in title:
+                parts = title.split(" - ", 1)
+                name = parts[0].strip()
+                author = parts[1].split("|")[0].strip() if "|" in parts[1] else parts[1].strip()
+            elif title:
+                name = title.split("|")[0].strip()
+            return {"name": name, "author": author, "title": title, "description": description}
+    except Exception as e:
+        return {"name": "", "author": "", "title": "", "description": "", "error": str(e)}
 
 
 # ── Admin Panel ──

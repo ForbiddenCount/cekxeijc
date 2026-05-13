@@ -348,10 +348,12 @@ function filterPromos() {
 function renderPromos() {
     const statusFilter = document.getElementById("promoFilterStatus")?.value;
     const searchQuery = (document.getElementById("promoSearch")?.value || "").toLowerCase().trim();
+    const tagFilter = (document.getElementById("promoTagFilter")?.value || "").toLowerCase().trim();
     const sortBy = document.getElementById("promoSort")?.value || "deadline";
     let filtered = [...allPromos];
     if (statusFilter) filtered = filtered.filter((p) => p.status === statusFilter);
     if (searchQuery) filtered = filtered.filter((p) => p.name.toLowerCase().includes(searchQuery) || (p.advertiser_name || "").toLowerCase().includes(searchQuery));
+    if (tagFilter) filtered = filtered.filter((p) => (p.tags || "").toLowerCase().includes(tagFilter));
     const statusOrder = { not_ready: 0, in_progress: 1, done: 2 };
     if (sortBy === "deadline") {
         filtered.sort((a, b) => {
@@ -395,10 +397,15 @@ function renderPromos() {
             const barColor = diff2 < 0 ? "#FF453A" : diff2 < 86400000 ? "#FFD60A" : "var(--accent)";
             progressHtml = `<div class="deadline-bar"><div class="deadline-bar-fill" style="width:${progress}%;background:${barColor}"></div></div>`;
         }
+        const tagsHtml = p.tags ? `<div class="card-meta">${p.tags.split(",").map(t => `<span class="tag-badge">${esc(t.trim())}</span>`).join("")}</div>` : "";
+        const checkboxHtml = bulkMode ? `<input type="checkbox" class="bulk-check" data-id="${p.id}" onclick="event.stopPropagation(); updateBulkCount()" style="width:18px;height:18px;margin-right:8px;accent-color:var(--accent);">` : "";
         return `
-            <div class="card" onclick="showPromoDetail(${p.id})">
+            <div class="card" onclick="${bulkMode ? `toggleBulkCheck(${p.id})` : `showPromoDetail(${p.id})`}">
                 <div class="card-header">
-                    <span class="card-title">${esc(p.name)}</span>
+                    <div style="display:flex;align-items:center;">
+                        ${checkboxHtml}
+                        <span class="card-title">${esc(p.name)}</span>
+                    </div>
                     <select class="status-select ${p.status}" onchange="event.stopPropagation(); changePromoStatus(${p.id}, this.value)" onclick="event.stopPropagation()">
                         <option value="not_ready" ${p.status === "not_ready" ? "selected" : ""}>Не готово</option>
                         <option value="in_progress" ${p.status === "in_progress" ? "selected" : ""}>В процессе</option>
@@ -411,6 +418,7 @@ function renderPromos() {
                     ${deadlineHtml}
                     ${p.price_usdt ? `<span class="price-usdt">$${p.price_usdt} USDT</span>` : ""}
                 </div>
+                ${tagsHtml}
                 ${p.notes ? `<div class="card-meta"><span>${esc(p.notes.substring(0, 80))}${p.notes.length > 80 ? "..." : ""}</span></div>` : ""}
                 ${progressHtml}
             </div>`;
@@ -423,16 +431,20 @@ function showAddPromo(existing = null) {
     openModal(`
         <div class="modal-title">${isEdit ? "Редактировать промо" : "Новое промо"}</div>
         <div class="input-group">
+            <label>Ссылка (TikTok — автозаполнение)</label>
+            <div style="display:flex;gap:6px;">
+                <input type="url" id="promoLink" value="${esc(existing?.link || "")}" placeholder="https://tiktok.com/music/..." style="flex:1;">
+                <button class="btn-primary btn-sm" onclick="fetchTikTokInfo()" style="width:auto;padding:10px 14px;">TT</button>
+            </div>
+            <div id="tiktokStatus" style="font-size:11px;color:var(--text-secondary);margin-top:4px;"></div>
+        </div>
+        <div class="input-group">
             <label>Рекламодатель</label>
             <input type="text" id="promoAdvertiser" value="${esc(existing?.advertiser_name || "")}" placeholder="Имя / @username (необязательно)">
         </div>
         <div class="input-group">
             <label>Название промо</label>
             <input type="text" id="promoName" value="${esc(existing?.name || "")}" placeholder="Название кампании">
-        </div>
-        <div class="input-group">
-            <label>Ссылка</label>
-            <input type="url" id="promoLink" value="${esc(existing?.link || "")}" placeholder="https://...">
         </div>
         <div class="input-group">
             <label>Цена (USDT)</label>
@@ -452,6 +464,10 @@ function showAddPromo(existing = null) {
             </select>
         </div>
         <div class="input-group">
+            <label>Тэги (через запятую)</label>
+            <input type="text" id="promoTags" value="${esc(existing?.tags || "")}" placeholder="music, tiktok, promo">
+        </div>
+        <div class="input-group">
             <label>Заметки</label>
             <textarea id="promoNotes" placeholder="Дополнительная информация...">${esc(existing?.notes || "")}</textarea>
         </div>
@@ -462,6 +478,30 @@ function showAddPromo(existing = null) {
         </div>
     `);
     updatePromoRubPrice();
+}
+
+async function fetchTikTokInfo() {
+    const url = document.getElementById("promoLink")?.value.trim();
+    const status = document.getElementById("tiktokStatus");
+    if (!url || !url.includes("tiktok.com")) {
+        if (status) status.textContent = "Вставьте ссылку TikTok";
+        return;
+    }
+    if (status) status.textContent = "Загрузка...";
+    try {
+        const data = await api("/api/tiktok-sound", { method: "POST", body: JSON.stringify({ url }) });
+        if (data.name) {
+            const nameInput = document.getElementById("promoName");
+            if (nameInput && !nameInput.value) nameInput.value = data.name;
+        }
+        if (data.author) {
+            const advInput = document.getElementById("promoAdvertiser");
+            if (advInput && !advInput.value) advInput.value = data.author;
+        }
+        if (status) status.textContent = data.name ? `Найдено: ${data.name}` : "Инфо не найдена";
+    } catch (e) {
+        if (status) status.textContent = "Ошибка загрузки";
+    }
 }
 
 async function updatePromoRubPrice() {
@@ -491,6 +531,7 @@ async function savePromo(id) {
         deadline: document.getElementById("promoDeadline").value?.replace("T", " ") || null,
         status: document.getElementById("promoStatus").value,
         notes: document.getElementById("promoNotes").value.trim(),
+        tags: document.getElementById("promoTags")?.value.trim() || "",
     };
     if (!data.name) {
         tg?.showAlert?.("Введите название промо") || alert("Введите название промо");
@@ -639,6 +680,149 @@ async function deletePromo(id) {
         console.error(e);
     }
 }
+
+// ── Bulk select ──
+
+let bulkMode = false;
+
+function toggleBulkSelect() {
+    bulkMode = !bulkMode;
+    document.getElementById("bulkActions").style.display = bulkMode ? "flex" : "none";
+    document.getElementById("bulkSelectBtn").textContent = bulkMode ? "Отмена" : "Выбрать";
+    renderPromos();
+}
+
+function toggleBulkCheck(id) {
+    const cb = document.querySelector(`.bulk-check[data-id="${id}"]`);
+    if (cb) cb.checked = !cb.checked;
+    updateBulkCount();
+}
+
+function updateBulkCount() {
+    const checked = document.querySelectorAll(".bulk-check:checked");
+    const el = document.getElementById("bulkCount");
+    if (el) el.textContent = `${checked.length} выбрано`;
+}
+
+async function bulkChangeStatus(status) {
+    const checked = document.querySelectorAll(".bulk-check:checked");
+    const ids = Array.from(checked).map(cb => parseInt(cb.dataset.id));
+    if (!ids.length) return;
+    try {
+        await api("/api/promos/bulk-status", { method: "PATCH", body: JSON.stringify({ ids, status }) });
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+        bulkMode = false;
+        document.getElementById("bulkActions").style.display = "none";
+        document.getElementById("bulkSelectBtn").textContent = "Выбрать";
+        loadPromos();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+
+// ── Export ──
+
+async function exportPromos() {
+    try {
+        const resp = await fetch("/api/promos/export", {
+            headers: { "X-Telegram-Init-Data": initData || JSON.stringify({ id: 1, first_name: "Dev" }) }
+        });
+        const text = await resp.text();
+        if (navigator.clipboard) {
+            await navigator.clipboard.writeText(text);
+            if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+            tg?.showAlert?.("Скопировано в буфер обмена!") || alert("Скопировано!");
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+
+// ── Templates ──
+
+async function showTemplates() {
+    try {
+        const templates = await api("/api/templates");
+        let html = '<div class="modal-title">Шаблоны</div>';
+        if (templates.length === 0) {
+            html += '<div class="empty-state"><div class="empty-text">Нет шаблонов</div></div>';
+        } else {
+            html += templates.map(t => `
+                <div class="card" style="cursor:pointer;" onclick="closeModal(); useTemplate(${JSON.stringify(t).replace(/"/g, '&quot;')})">
+                    <div class="card-header">
+                        <span class="card-title">${esc(t.name)}</span>
+                        <button class="note-action-btn" onclick="event.stopPropagation(); deleteTemplate(${t.id})" style="color:#FF453A;">✕</button>
+                    </div>
+                    ${t.advertiser_name ? `<div class="card-subtitle">${esc(t.advertiser_name)}</div>` : ""}
+                    ${t.tags ? `<div class="card-meta">${t.tags.split(",").map(tg => `<span class="tag-badge">${esc(tg.trim())}</span>`).join("")}</div>` : ""}
+                </div>
+            `).join("");
+        }
+        html += '<div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Закрыть</button><button class="btn-primary" onclick="closeModal(); saveAsTemplate()">Сохранить текущее как шаблон</button></div>';
+        openModal(html);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function useTemplate(t) {
+    showAddPromo({
+        name: t.name,
+        link: t.link || "",
+        price_usdt: t.price_usdt,
+        advertiser_name: t.advertiser_name || "",
+        tags: t.tags || "",
+        notes: t.notes || "",
+        status: "not_ready",
+    });
+}
+
+async function saveAsTemplate() {
+    openModal(`
+        <div class="modal-title">Новый шаблон</div>
+        <div class="input-group"><label>Название</label><input type="text" id="tplName" placeholder="Название шаблона"></div>
+        <div class="input-group"><label>Рекламодатель</label><input type="text" id="tplAdv" placeholder="(необязательно)"></div>
+        <div class="input-group"><label>Ссылка</label><input type="url" id="tplLink" placeholder="https://..."></div>
+        <div class="input-group"><label>Цена USDT</label><input type="number" id="tplPrice" step="0.01"></div>
+        <div class="input-group"><label>Тэги</label><input type="text" id="tplTags" placeholder="через запятую"></div>
+        <div class="input-group"><label>Заметки</label><textarea id="tplNotes"></textarea></div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal()">Отмена</button>
+            <button class="btn-primary" onclick="doSaveTemplate()">Сохранить</button>
+        </div>
+    `);
+}
+
+async function doSaveTemplate() {
+    const name = document.getElementById("tplName")?.value.trim();
+    if (!name) { alert("Введите название"); return; }
+    try {
+        await api("/api/templates", { method: "POST", body: JSON.stringify({
+            name,
+            advertiser_name: document.getElementById("tplAdv")?.value.trim() || "",
+            link: document.getElementById("tplLink")?.value.trim() || "",
+            price_usdt: parseFloat(document.getElementById("tplPrice")?.value) || null,
+            tags: document.getElementById("tplTags")?.value.trim() || "",
+            notes: document.getElementById("tplNotes")?.value.trim() || "",
+        })});
+        closeModal();
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function deleteTemplate(id) {
+    try {
+        await api(`/api/templates/${id}`, { method: "DELETE" });
+        showTemplates();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
 
 // ── Converter ──
 
