@@ -170,49 +170,6 @@ async function loadDashboard() {
     }
 
     try {
-        const allPromos = await api("/api/promos");
-        const now = new Date();
-        const upcoming = allPromos
-            .filter((p) => p.deadline && p.status !== "done")
-            .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
-            .slice(0, 5);
-
-        const container = document.getElementById("upcomingDeadlines");
-        if (upcoming.length === 0) {
-            container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><div class="empty-text">Нет активных дедлайнов</div></div>';
-        } else {
-            container.innerHTML = upcoming.map((p) => {
-                const dl = new Date(p.deadline);
-                const diff = dl - now;
-                const hours = Math.floor(diff / 3600000);
-                let deadlineClass = "";
-                if (diff < 0) deadlineClass = "overdue";
-                else if (hours < 24) deadlineClass = "soon";
-                const createdAt = new Date(p.created_at || now);
-                const totalMs = dl - createdAt;
-                const elapsedMs = now - createdAt;
-                const progress = totalMs > 0 ? Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100)) : 100;
-                const barColor = diff < 0 ? "#FF453A" : hours < 24 ? "#FFD60A" : "var(--accent)";
-                return `
-                    <div class="card" onclick="showPromoDetail(${p.id})">
-                        <div class="card-header">
-                            <span class="card-title">${esc(p.name)}</span>
-                            <span class="status status-${p.status}">${statusLabel(p.status)}</span>
-                        </div>
-                        <div class="card-meta">
-                            <span>${esc(p.advertiser_name || "—")}</span>
-                            <span class="deadline ${deadlineClass}">${formatDate(p.deadline)}</span>
-                            ${p.price_usdt ? `<span class="price-usdt">$${p.price_usdt}</span>` : ""}
-                        </div>
-                        <div class="deadline-bar"><div class="deadline-bar-fill" style="width:${progress}%;background:${barColor}"></div></div>
-                    </div>`;
-            }).join("");
-        }
-    } catch (e) {
-        console.error(e);
-    }
-
-    try {
         const reminders = await api("/api/reminders");
         const container = document.getElementById("remindersList");
         if (reminders.length === 0) {
@@ -349,20 +306,13 @@ function renderPromos() {
     const statusFilter = document.getElementById("promoFilterStatus")?.value;
     const searchQuery = (document.getElementById("promoSearch")?.value || "").toLowerCase().trim();
     const tagFilter = (document.getElementById("promoTagFilter")?.value || "").toLowerCase().trim();
-    const sortBy = document.getElementById("promoSort")?.value || "deadline";
+    const sortBy = document.getElementById("promoSort")?.value || "created";
     let filtered = [...allPromos];
     if (statusFilter) filtered = filtered.filter((p) => p.status === statusFilter);
     if (searchQuery) filtered = filtered.filter((p) => p.name.toLowerCase().includes(searchQuery) || (p.advertiser_name || "").toLowerCase().includes(searchQuery));
     if (tagFilter) filtered = filtered.filter((p) => (p.tags || "").toLowerCase().includes(tagFilter));
     const statusOrder = { not_ready: 0, in_progress: 1, done: 2 };
-    if (sortBy === "deadline") {
-        filtered.sort((a, b) => {
-            if (!a.deadline && !b.deadline) return 0;
-            if (!a.deadline) return 1;
-            if (!b.deadline) return -1;
-            return new Date(a.deadline) - new Date(b.deadline);
-        });
-    } else if (sortBy === "created") {
+    if (sortBy === "created") {
         filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     } else if (sortBy === "status") {
         filtered.sort((a, b) => (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0));
@@ -375,28 +325,7 @@ function renderPromos() {
         return;
     }
 
-    const now = new Date();
     container.innerHTML = filtered.map((p) => {
-        let deadlineHtml = "";
-        if (p.deadline) {
-            const dl = new Date(p.deadline);
-            const diff = dl - now;
-            let cls = "";
-            if (diff < 0) cls = "overdue";
-            else if (diff < 86400000) cls = "soon";
-            deadlineHtml = `<span class="deadline ${cls}">${formatDate(p.deadline)}</span>`;
-        }
-        let progressHtml = "";
-        if (p.deadline) {
-            const dl2 = new Date(p.deadline);
-            const createdAt = new Date(p.created_at || now);
-            const totalMs = dl2 - createdAt;
-            const elapsedMs = now - createdAt;
-            const progress = totalMs > 0 ? Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100)) : 100;
-            const diff2 = dl2 - now;
-            const barColor = diff2 < 0 ? "#FF453A" : diff2 < 86400000 ? "#FFD60A" : "var(--accent)";
-            progressHtml = `<div class="deadline-bar"><div class="deadline-bar-fill" style="width:${progress}%;background:${barColor}"></div></div>`;
-        }
         const tagsHtml = p.tags ? `<div class="card-meta">${p.tags.split(",").map(t => `<span class="tag-badge">${esc(t.trim())}</span>`).join("")}</div>` : "";
         const checkboxHtml = bulkMode ? `<input type="checkbox" class="bulk-check" data-id="${p.id}" onclick="event.stopPropagation(); updateBulkCount()" style="width:18px;height:18px;margin-right:8px;accent-color:var(--accent);">` : "";
         return `
@@ -415,12 +344,10 @@ function renderPromos() {
                 ${p.advertiser_name ? `<div class="card-subtitle">${esc(p.advertiser_name)}</div>` : ""}
                 <div class="card-meta">
                     ${p.link ? `<span class="copy-link" onclick="event.stopPropagation(); copyLink('${esc(p.link)}')">📋 Копировать</span>` : ""}
-                    ${deadlineHtml}
                     ${p.price_usdt ? `<span class="price-usdt">$${p.price_usdt} USDT</span>` : ""}
                 </div>
                 ${tagsHtml}
                 ${p.notes ? `<div class="card-meta"><span>${esc(p.notes.substring(0, 80))}${p.notes.length > 80 ? "..." : ""}</span></div>` : ""}
-                ${progressHtml}
             </div>`;
     }).join("");
 }
@@ -454,10 +381,6 @@ function showAddPromo(existing = null) {
             <label>Цена (USDT)</label>
             <input type="number" id="promoPrice" value="${existing?.price_usdt || ""}" placeholder="0.00" step="0.01" oninput="updatePromoRubPrice()">
             <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;" id="promoRubEquiv"></div>
-        </div>
-        <div class="input-group">
-            <label>Дедлайн</label>
-            <input type="datetime-local" id="promoDeadline" value="${existing?.deadline ? existing.deadline.replace(" ", "T").substring(0, 16) : ""}">
         </div>
         <div class="input-group">
             <label>Статус</label>
@@ -496,13 +419,9 @@ async function fetchTikTokInfo() {
         const data = await api("/api/tiktok-sound", { method: "POST", body: JSON.stringify({ url }) });
         if (data.name) {
             const nameInput = document.getElementById("promoName");
-            if (nameInput && !nameInput.value) nameInput.value = data.name;
+            if (nameInput) nameInput.value = data.name;
         }
-        if (data.author) {
-            const advInput = document.getElementById("promoAdvertiser");
-            if (advInput && !advInput.value) advInput.value = data.author;
-        }
-        if (status) status.textContent = data.name ? `Найдено: ${data.name}` : "Инфо не найдена";
+        if (status) status.textContent = data.name ? `Трек: ${data.name}` : "Название не найдено";
     } catch (e) {
         if (status) status.textContent = "Ошибка загрузки";
     }
@@ -516,20 +435,32 @@ async function lookupTikTokUser() {
         if (status) status.textContent = "Введите @username";
         return;
     }
-    if (status) status.textContent = "Поиск...";
+    if (status) status.innerHTML = '<span style="color:var(--accent);">Поиск...</span>';
     try {
-        const data = await api("/api/tiktok-user", { method: "POST", body: JSON.stringify({ username }) });
-        let info = `@${data.username}`;
-        if (data.display_name) {
-            input.value = `${data.display_name} (@${data.username})`;
-            info += ` — ${data.display_name}`;
+        const results = await api("/api/tiktok-user", { method: "POST", body: JSON.stringify({ username }) });
+        if (!results.length) {
+            if (status) status.textContent = "Не найдено";
+            return;
         }
-        if (data.followers) info += ` · ${data.followers} подписчиков`;
-        if (data.bio) info += `\n${data.bio.substring(0, 80)}`;
-        if (status) status.textContent = info;
+        status.innerHTML = results.map(u => `
+            <div class="tt-user-result" onclick="selectTikTokUser('${esc(u.display_name)}', '${esc(u.username)}')">
+                <img class="tt-user-avatar" src="${u.avatar || ''}" onerror="this.style.display='none'" alt="">
+                <div class="tt-user-info">
+                    <div class="tt-user-name">${esc(u.display_name)}</div>
+                    <div class="tt-user-handle">@${esc(u.username)}${u.followers ? ' · ' + u.followers : ''}</div>
+                </div>
+            </div>
+        `).join("");
     } catch (e) {
-        if (status) status.textContent = "Пользователь не найден";
+        if (status) status.textContent = "Ошибка поиска";
     }
+}
+
+function selectTikTokUser(name, username) {
+    const input = document.getElementById("promoAdvertiser");
+    if (input) input.value = `${name} (@${username})`;
+    const status = document.getElementById("tiktokUserStatus");
+    if (status) status.innerHTML = `<span style="color:var(--accent);">Выбран: @${username}</span>`;
 }
 
 async function updatePromoRubPrice() {
@@ -556,7 +487,6 @@ async function savePromo(id) {
         name: document.getElementById("promoName").value.trim(),
         link: document.getElementById("promoLink").value.trim(),
         price_usdt: parseFloat(document.getElementById("promoPrice").value) || null,
-        deadline: document.getElementById("promoDeadline").value?.replace("T", " ") || null,
         status: document.getElementById("promoStatus").value,
         notes: document.getElementById("promoNotes").value.trim(),
         tags: document.getElementById("promoTags")?.value.trim() || "",
@@ -607,7 +537,6 @@ async function showPromoDetail(id) {
                 <span class="status status-${promo.status}">${statusLabel(promo.status)}</span>
             </div>
             ${promo.link ? `<div class="card-meta" style="margin-bottom:8px;"><a href="${esc(promo.link)}" target="_blank" style="color:var(--link)">${esc(promo.link)}</a></div>` : ""}
-            ${promo.deadline ? `<div class="card-meta" style="margin-bottom:8px;"><span>Дедлайн: ${formatDate(promo.deadline)}</span></div>` : ""}
             ${promo.price_usdt ? `<div class="card-meta"><span class="price-usdt">$${promo.price_usdt} USDT</span><span class="price-rub">≈ ${(promo.price_usdt * exchangeRate).toFixed(2)} RUB</span></div>` : ""}
         </div>
         

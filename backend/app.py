@@ -564,49 +564,112 @@ async def tiktok_sound_info(request: Request):
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
             resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"})
             html = resp.text
-            title_match = re.search(r'<title[^>]*>([^<]+)</title>', html, re.IGNORECASE)
-            title = title_match.group(1).strip() if title_match else ""
-            desc_match = re.search(r'<meta[^>]*name=["\']description["\'][^>]*content=["\']([^"\']+)["\']', html, re.IGNORECASE)
-            description = desc_match.group(1).strip() if desc_match else ""
             name = ""
             author = ""
-            if " - " in title:
-                parts = title.split(" - ", 1)
-                name = parts[0].strip()
-                author = parts[1].split("|")[0].strip() if "|" in parts[1] else parts[1].strip()
-            elif title:
-                name = title.split("|")[0].strip()
-            return {"name": name, "author": author, "title": title, "description": description}
+            # Try JSON-LD structured data first
+            music_match = re.search(r'"musicName"\s*:\s*"([^"]+)"', html)
+            if music_match:
+                name = music_match.group(1)
+            author_match = re.search(r'"authorName"\s*:\s*"([^"]+)"', html)
+            if author_match:
+                author = author_match.group(1)
+            # Try og:title for music pages
+            if not name:
+                og_match = re.search(r'<meta[^>]*property="og:title"[^>]*content="([^"]+)"', html, re.IGNORECASE)
+                if og_match:
+                    og_title = og_match.group(1).strip()
+                    if "tiktok" not in og_title.lower()[:10]:
+                        name = og_title
+            # Fallback to page title
+            if not name:
+                title_match = re.search(r'<title[^>]*>([^<]+)</title>', html, re.IGNORECASE)
+                title = title_match.group(1).strip() if title_match else ""
+                if " - " in title:
+                    parts = title.split(" - ", 1)
+                    name = parts[0].strip()
+                    if not author:
+                        author = parts[1].split("|")[0].strip() if "|" in parts[1] else parts[1].strip()
+                elif title and "tiktok" not in title.lower()[:10]:
+                    name = title.split("|")[0].strip()
+            # Clean up generic titles
+            if name and ("make your day" in name.lower() or "tiktok" in name.lower()[:10]):
+                name = ""
+            return {"name": name, "author": author}
     except Exception as e:
-        return {"name": "", "author": "", "title": "", "description": "", "error": str(e)}
+        return {"name": "", "author": "", "error": str(e)}
 
 
 @app.post("/api/tiktok-user")
-async def tiktok_user_info(request: Request):
+async def tiktok_user_search(request: Request):
     data = await request.json()
-    username = data.get("username", "").strip().lstrip("@")
-    if not username:
+    query = data.get("username", "").strip().lstrip("@")
+    if not query:
         raise HTTPException(400, "Username required")
-    url = f"https://www.tiktok.com/@{username}"
+    results = []
+    headers = {"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"}
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"})
+            # Direct profile lookup
+            resp = await client.get(f"https://www.tiktok.com/@{query}", headers=headers)
             html = resp.text
             title_match = re.search(r'<title[^>]*>([^<]+)</title>', html, re.IGNORECASE)
             title = title_match.group(1).strip() if title_match else ""
             display_name = ""
-            if title:
+            if title and "TikTok" not in title[:10]:
                 parts = title.split("(")
                 display_name = parts[0].strip()
-                if display_name.startswith("@"):
-                    display_name = ""
-            desc_match = re.search(r'<meta[^>]*name=["\']description["\'][^>]*content=["\']([^"\']+)["\']', html, re.IGNORECASE)
+            avatar = ""
+            av_match = re.search(r'"avatarThumb":"([^"]+)"', html)
+            if not av_match:
+                av_match = re.search(r'<meta[^>]*property="og:image"[^>]*content="([^"]+)"', html)
+            if av_match:
+                avatar = av_match.group(1).replace("\\u002F", "/")
+            desc_match = re.search(r'<meta[^>]*name="description"[^>]*content="([^"]+)"', html, re.IGNORECASE)
             bio = desc_match.group(1).strip() if desc_match else ""
-            followers_match = re.search(r'(\d+[\.\d]*[KkMm]?)\s*Followers', html)
-            followers = followers_match.group(1) if followers_match else ""
-            return {"username": username, "display_name": display_name, "bio": bio, "followers": followers, "url": url}
+            followers_match = re.search(r'"followerCount":(\d+)', html)
+            followers = ""
+            if followers_match:
+                fc = int(followers_match.group(1))
+                followers = f"{fc // 1000}K" if fc >= 1000 else str(fc)
+            if display_name or "404" not in title:
+                results.append({
+                    "username": query,
+                    "display_name": display_name or query,
+                    "avatar": avatar,
+                    "bio": bio[:100],
+                    "followers": followers,
+                })
+            # Also try common variations
+            for suffix in ["_official", "official", ".music", "_music"]:
+                variant = query + suffix
+                try:
+                    resp2 = await client.get(f"https://www.tiktok.com/@{variant}", headers=headers)
+                    h2 = resp2.text
+                    t2 = re.search(r'<title[^>]*>([^<]+)</title>', h2, re.IGNORECASE)
+                    t2_text = t2.group(1).strip() if t2 else ""
+                    if t2_text and "404" not in t2_text and "TikTok" not in t2_text[:10]:
+                        dn2 = t2_text.split("(")[0].strip()
+                        av2 = re.search(r'"avatarThumb":"([^"]+)"', h2)
+                        if not av2:
+                            av2 = re.search(r'<meta[^>]*property="og:image"[^>]*content="([^"]+)"', h2)
+                        fc2 = re.search(r'"followerCount":(\d+)', h2)
+                        fc2_str = ""
+                        if fc2:
+                            c = int(fc2.group(1))
+                            fc2_str = f"{c // 1000}K" if c >= 1000 else str(c)
+                        results.append({
+                            "username": variant,
+                            "display_name": dn2 or variant,
+                            "avatar": av2.group(1).replace("\\u002F", "/") if av2 else "",
+                            "bio": "",
+                            "followers": fc2_str,
+                        })
+                except Exception:
+                    pass
     except Exception as e:
-        return {"username": username, "display_name": "", "bio": "", "followers": "", "url": url, "error": str(e)}
+        if not results:
+            results.append({"username": query, "display_name": query, "avatar": "", "bio": "", "followers": "", "error": str(e)})
+    return results
 
 
 # ── Admin Panel ──
