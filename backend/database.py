@@ -147,4 +147,27 @@ async def init_db():
                 FOREIGN KEY (user_id) REFERENCES users(telegram_id)
             )
         """)
+        # Migration: add payment_status to promos
+        try:
+            await db.execute("ALTER TABLE promos ADD COLUMN payment_status TEXT DEFAULT 'pending'")
+        except Exception:
+            pass
+        # Migration: add paid_amount to promos
+        try:
+            await db.execute("ALTER TABLE promos ADD COLUMN paid_amount REAL DEFAULT 0")
+        except Exception:
+            pass
+        # Expenses table for net profit tracking
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                amount REAL NOT NULL,
+                currency TEXT DEFAULT 'USDT',
+                description TEXT,
+                category TEXT DEFAULT 'other',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(telegram_id)
+            )
+        """)
         await db.commit()

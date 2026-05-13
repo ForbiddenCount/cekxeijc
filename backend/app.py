@@ -4,6 +4,7 @@ import json
 import os
 import re
 import time
+from datetime import datetime
 from contextlib import asynccontextmanager
 from urllib.parse import parse_qs, unquote
 
@@ -321,7 +322,7 @@ async def create_promo(request: Request, user=Depends(get_current_user), db=Depe
     data = await request.json()
     telegram_id = user.get("id", 0)
     await db.execute(
-        "INSERT INTO promos (user_id, name, link, price_usdt, status, deadline, notes, category, advertiser_name, advertiser_id, tags, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
+        "INSERT INTO promos (user_id, name, link, price_usdt, status, deadline, notes, category, advertiser_name, advertiser_id, tags, priority, payment_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)",
         (
             telegram_id,
             data["name"],
@@ -334,6 +335,7 @@ async def create_promo(request: Request, user=Depends(get_current_user), db=Depe
             data.get("advertiser_name", ""),
             data.get("tags", ""),
             data.get("priority", "medium"),
+            data.get("payment_status", "pending"),
         ),
     )
     await db.commit()
@@ -346,7 +348,7 @@ async def update_promo(promo_id: int, request: Request, user=Depends(get_current
     data = await request.json()
     telegram_id = user.get("id", 0)
     await db.execute(
-        "UPDATE promos SET name=?, link=?, price_usdt=?, status=?, deadline=?, notes=?, category=?, advertiser_name=?, tags=?, priority=? WHERE id=? AND user_id=?",
+        "UPDATE promos SET name=?, link=?, price_usdt=?, status=?, deadline=?, notes=?, category=?, advertiser_name=?, tags=?, priority=?, payment_status=? WHERE id=? AND user_id=?",
         (
             data["name"],
             data.get("link", ""),
@@ -358,6 +360,7 @@ async def update_promo(promo_id: int, request: Request, user=Depends(get_current
             data.get("advertiser_name", ""),
             data.get("tags", ""),
             data.get("priority", "medium"),
+            data.get("payment_status", "pending"),
             promo_id,
             telegram_id,
         ),
@@ -455,7 +458,22 @@ async def get_stats(user=Depends(get_current_user), db=Depends(get_db)):
     archived_count = dict(await archived.fetchone())["c"]
     high = await db.execute("SELECT COUNT(*) as c FROM promos WHERE user_id = ? AND archived = 0 AND priority = 'high'", (telegram_id,))
     high_count = dict(await high.fetchone())["c"]
-    return {"total": total_count, "done": done_count, "week_done": week_count, "month_done": month_count, "archived": archived_count, "high_priority": high_count}
+    # Financial stats
+    income = await db.execute("SELECT COALESCE(SUM(price_usdt), 0) as s FROM promos WHERE user_id = ? AND archived = 0 AND payment_status = 'paid'", (telegram_id,))
+    income_total = dict(await income.fetchone())["s"]
+    income_month = await db.execute("SELECT COALESCE(SUM(price_usdt), 0) as s FROM promos WHERE user_id = ? AND payment_status = 'paid' AND created_at >= datetime('now', '-30 days')", (telegram_id,))
+    income_month_val = dict(await income_month.fetchone())["s"]
+    pending_pay = await db.execute("SELECT COALESCE(SUM(price_usdt), 0) as s FROM promos WHERE user_id = ? AND archived = 0 AND payment_status = 'pending' AND status = 'done'", (telegram_id,))
+    pending_pay_val = dict(await pending_pay.fetchone())["s"]
+    expenses_month = await db.execute("SELECT COALESCE(SUM(amount), 0) as s FROM expenses WHERE user_id = ? AND created_at >= datetime('now', '-30 days')", (telegram_id,))
+    expenses_month_val = dict(await expenses_month.fetchone())["s"]
+    return {
+        "total": total_count, "done": done_count, "week_done": week_count,
+        "month_done": month_count, "archived": archived_count, "high_priority": high_count,
+        "income_total": income_total, "income_month": income_month_val,
+        "pending_payment": pending_pay_val, "expenses_month": expenses_month_val,
+        "net_profit_month": round(income_month_val - expenses_month_val, 2),
+    }
 
 
 # ── Notes ──
@@ -551,6 +569,18 @@ async def create_reminder(request: Request, user=Depends(get_current_user), db=D
     return dict(await row.fetchone())
 
 
+@app.put("/api/reminders/{reminder_id}")
+async def update_reminder(reminder_id: int, request: Request, user=Depends(get_current_user), db=Depends(get_db)):
+    data = await request.json()
+    telegram_id = user.get("id", 0)
+    await db.execute(
+        "UPDATE reminders SET remind_at=?, message=?, promo_id=? WHERE id=? AND user_id=?",
+        (data["remind_at"], data.get("message", ""), data.get("promo_id"), reminder_id, telegram_id),
+    )
+    await db.commit()
+    return {"ok": True}
+
+
 @app.delete("/api/reminders/{reminder_id}")
 async def delete_reminder(reminder_id: int, user=Depends(get_current_user), db=Depends(get_db)):
     telegram_id = user.get("id", 0)
@@ -559,27 +589,46 @@ async def delete_reminder(reminder_id: int, user=Depends(get_current_user), db=D
     return {"ok": True}
 
 
-# ── Price Converter ──
+# ── Price Converter (Multi-currency) ──
 
-EXCHANGE_RATE_CACHE = {"rate": None, "timestamp": 0}
+RATES_CACHE = {"rates": {}, "timestamp": 0}
+
+CURRENCY_IDS = {
+    "USDT": "tether",
+    "BTC": "bitcoin",
+    "ETH": "ethereum",
+}
+FIAT_CURRENCIES = ["usd", "eur", "rub", "kzt", "uzs", "try", "gbp", "cny", "jpy", "aed"]
+
+
+async def get_all_rates() -> dict:
+    now = time.time()
+    if RATES_CACHE["rates"] and now - RATES_CACHE["timestamp"] < 300:
+        return RATES_CACHE["rates"]
+    try:
+        crypto_ids = ",".join(CURRENCY_IDS.values())
+        fiat_list = ",".join(FIAT_CURRENCIES)
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"https://api.coingecko.com/api/v3/simple/price?ids={crypto_ids}&vs_currencies={fiat_list}"
+            )
+            data = resp.json()
+            rates = {}
+            for symbol, cg_id in CURRENCY_IDS.items():
+                if cg_id in data:
+                    for fiat in FIAT_CURRENCIES:
+                        if fiat in data[cg_id]:
+                            rates[f"{symbol}_{fiat.upper()}"] = data[cg_id][fiat]
+            RATES_CACHE["rates"] = rates
+            RATES_CACHE["timestamp"] = now
+            return rates
+    except Exception:
+        return RATES_CACHE.get("rates") or {"USDT_RUB": 92.0, "USDT_USD": 1.0}
 
 
 async def get_usdt_rub_rate() -> float:
-    now = time.time()
-    if EXCHANGE_RATE_CACHE["rate"] and now - EXCHANGE_RATE_CACHE["timestamp"] < 300:
-        return EXCHANGE_RATE_CACHE["rate"]
-    try:
-        async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(
-                "https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=rub"
-            )
-            data = resp.json()
-            rate = data["tether"]["rub"]
-            EXCHANGE_RATE_CACHE["rate"] = rate
-            EXCHANGE_RATE_CACHE["timestamp"] = now
-            return rate
-    except Exception:
-        return EXCHANGE_RATE_CACHE.get("rate") or 92.0
+    rates = await get_all_rates()
+    return rates.get("USDT_RUB", 92.0)
 
 
 @app.get("/api/exchange-rate")
@@ -588,13 +637,31 @@ async def exchange_rate():
     return {"usdt_rub": rate}
 
 
+@app.get("/api/rates")
+async def all_rates():
+    rates = await get_all_rates()
+    return rates
+
+
 @app.get("/api/convert")
-async def convert_price(amount: float, direction: str = "usdt_to_rub"):
-    rate = await get_usdt_rub_rate()
-    if direction == "usdt_to_rub":
-        return {"result": round(amount * rate, 2), "rate": rate, "currency": "RUB"}
+async def convert_price(amount: float, from_cur: str = "USDT", to_cur: str = "RUB"):
+    rates = await get_all_rates()
+    from_cur = from_cur.upper()
+    to_cur = to_cur.upper()
+    key = f"{from_cur}_{to_cur}"
+    reverse_key = f"{to_cur}_{from_cur}"
+    if key in rates:
+        result = amount * rates[key]
+    elif reverse_key in rates:
+        result = amount / rates[reverse_key]
     else:
-        return {"result": round(amount / rate, 4), "rate": rate, "currency": "USDT"}
+        from_usd = rates.get(f"{from_cur}_USD", 1.0)
+        to_usd = rates.get(f"{to_cur}_USD")
+        if to_usd:
+            result = amount * from_usd / to_usd
+        else:
+            return {"error": "Unsupported pair", "result": 0}
+    return {"result": round(result, 4), "from": from_cur, "to": to_cur}
 
 
 # ── Templates ──
@@ -628,6 +695,97 @@ async def delete_template(template_id: int, user=Depends(get_current_user), db=D
     await db.execute("DELETE FROM promo_templates WHERE id = ? AND user_id = ?", (template_id, telegram_id))
     await db.commit()
     return {"ok": True}
+
+
+# ── Payment tracking ──
+
+@app.patch("/api/promos/{promo_id}/payment")
+async def update_payment(promo_id: int, request: Request, user=Depends(get_current_user), db=Depends(get_db)):
+    data = await request.json()
+    telegram_id = user.get("id", 0)
+    payment_status = data.get("payment_status", "pending")
+    paid_amount = data.get("paid_amount", 0)
+    await db.execute(
+        "UPDATE promos SET payment_status=?, paid_amount=? WHERE id=? AND user_id=?",
+        (payment_status, paid_amount, promo_id, telegram_id),
+    )
+    await db.commit()
+    return {"ok": True}
+
+
+# ── Expenses ──
+
+@app.get("/api/expenses")
+async def list_expenses(user=Depends(get_current_user), db=Depends(get_db)):
+    telegram_id = user.get("id", 0)
+    rows = await db.execute("SELECT * FROM expenses WHERE user_id = ? ORDER BY created_at DESC", (telegram_id,))
+    return [dict(r) for r in await rows.fetchall()]
+
+
+@app.post("/api/expenses")
+async def create_expense(request: Request, user=Depends(get_current_user), db=Depends(get_db)):
+    data = await request.json()
+    telegram_id = user.get("id", 0)
+    await db.execute(
+        "INSERT INTO expenses (user_id, amount, currency, description, category) VALUES (?, ?, ?, ?, ?)",
+        (telegram_id, data["amount"], data.get("currency", "USDT"), data.get("description", ""), data.get("category", "other")),
+    )
+    await db.commit()
+    row = await db.execute("SELECT * FROM expenses WHERE id = last_insert_rowid()")
+    return dict(await row.fetchone())
+
+
+@app.delete("/api/expenses/{expense_id}")
+async def delete_expense(expense_id: int, user=Depends(get_current_user), db=Depends(get_db)):
+    telegram_id = user.get("id", 0)
+    await db.execute("DELETE FROM expenses WHERE id = ? AND user_id = ?", (expense_id, telegram_id))
+    await db.commit()
+    return {"ok": True}
+
+
+# ── Invoice ──
+
+@app.get("/api/promos/{promo_id}/invoice")
+async def generate_invoice(promo_id: int, user=Depends(get_current_user), db=Depends(get_db)):
+    telegram_id = user.get("id", 0)
+    row = await db.execute("SELECT * FROM promos WHERE id = ? AND user_id = ?", (promo_id, telegram_id))
+    promo = await row.fetchone()
+    if not promo:
+        raise HTTPException(404, "Promo not found")
+    p = dict(promo)
+    rate = await get_usdt_rub_rate()
+    now = datetime.now().strftime("%d.%m.%Y")
+    rub_amount = round((p.get("price_usdt") or 0) * rate, 2)
+    lines = [
+        "═══════════════════════════",
+        "         ИНВОЙС / СЧЁТ",
+        "═══════════════════════════",
+        f"Дата: {now}",
+        f"Номер: INV-{p['id']:04d}",
+        "",
+        f"Кампания: {p['name']}",
+    ]
+    if p.get("advertiser_name"):
+        lines.append(f"Рекламодатель: {p['advertiser_name']}")
+    if p.get("link"):
+        lines.append(f"Ссылка: {p['link']}")
+    lines += [
+        "",
+        "───────────────────────────",
+        f"Сумма: ${p.get('price_usdt', 0)} USDT",
+        f"       ≈ {rub_amount} RUB (курс {rate:.2f})",
+        "───────────────────────────",
+        "",
+    ]
+    payment_labels = {"pending": "Ожидает оплаты", "partial": "Частично оплачен", "paid": "Оплачен"}
+    lines.append(f"Статус: {payment_labels.get(p.get('payment_status', 'pending'), 'Ожидает')}")
+    if p.get("paid_amount") and p.get("paid_amount") > 0:
+        lines.append(f"Оплачено: ${p['paid_amount']} USDT")
+        remaining = (p.get("price_usdt") or 0) - p["paid_amount"]
+        if remaining > 0:
+            lines.append(f"Остаток: ${remaining:.2f} USDT")
+    lines += ["", "═══════════════════════════"]
+    return PlainTextResponse("\n".join(lines))
 
 
 # ── TikTok info ──

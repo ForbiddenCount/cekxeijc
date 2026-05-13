@@ -190,6 +190,14 @@ async function loadDashboard() {
                     <div class="stat-value" style="color:#FF453A;">${stats.high_priority}</div>
                     <div class="stat-label">Срочных</div>
                 </div>` : ""}
+                ${stats.income_month ? `<div class="stat-card" style="border-color:#34C759;">
+                    <div class="stat-value" style="color:#34C759;">$${stats.income_month}</div>
+                    <div class="stat-label">Доход/мес</div>
+                </div>` : ""}
+                ${stats.pending_payment ? `<div class="stat-card" style="border-color:#FFD60A;">
+                    <div class="stat-value" style="color:#FFD60A;">$${stats.pending_payment}</div>
+                    <div class="stat-label">Ожидает</div>
+                </div>` : ""}
             `;
         }
     } catch (e) {
@@ -206,7 +214,10 @@ async function loadDashboard() {
                 <div class="card">
                     <div class="card-header">
                         <span class="card-title">${esc(r.message || r.promo_name || "Напоминание")}</span>
-                        <button class="btn-icon btn-sm" onclick="event.stopPropagation(); deleteReminder(${r.id})" style="width:24px;height:24px;font-size:12px;">✕</button>
+                        <div style="display:flex;gap:4px;">
+                            <button class="btn-icon btn-sm" onclick="event.stopPropagation(); showAddReminder(${r.id}, ${esc(JSON.stringify({remind_at:r.remind_at,message:r.message,promo_id:r.promo_id}))})" style="width:24px;height:24px;font-size:12px;">✎</button>
+                            <button class="btn-icon btn-sm" onclick="event.stopPropagation(); deleteReminder(${r.id})" style="width:24px;height:24px;font-size:12px;">✕</button>
+                        </div>
                     </div>
                     <div class="card-meta">
                         <span>${formatDate(r.remind_at)}</span>
@@ -374,6 +385,7 @@ function renderPromos() {
                 <div class="card-meta">
                     ${p.link ? `<span class="copy-link" onclick="event.stopPropagation(); copyLink('${esc(p.link)}')">📋 Копировать</span>` : ""}
                     ${p.price_usdt ? `<span class="price-usdt">$${p.price_usdt} USDT</span>` : ""}
+                    ${p.price_usdt ? `<span class="payment-badge payment-${p.payment_status || 'pending'}">${paymentLabel(p.payment_status)}</span>` : ""}
                 </div>
                 ${tagsHtml}
                 ${p.notes ? `<div class="card-meta"><span>${esc(p.notes.substring(0, 80))}${p.notes.length > 80 ? "..." : ""}</span></div>` : ""}
@@ -420,6 +432,14 @@ function showAddPromo(existing = null) {
             </select>
         </div>
         <div class="input-group">
+            <label>Статус оплаты</label>
+            <select id="promoPaymentStatus">
+                <option value="pending" ${!existing || existing?.payment_status === "pending" ? "selected" : ""}>Ожидается</option>
+                <option value="partial" ${existing?.payment_status === "partial" ? "selected" : ""}>Частично оплачен</option>
+                <option value="paid" ${existing?.payment_status === "paid" ? "selected" : ""}>Выплачен</option>
+            </select>
+        </div>
+        <div class="input-group">
             <label>Тэги (через запятую)</label>
             <input type="text" id="promoTags" value="${esc(existing?.tags || "")}" placeholder="music, tiktok, promo">
         </div>
@@ -445,12 +465,23 @@ function showAddPromo(existing = null) {
 }
 
 async function fetchTikTokInfo() {
-    const url = document.getElementById("promoLink")?.value.trim();
+    const linkInput = document.getElementById("promoLink");
     const status = document.getElementById("tiktokStatus");
+    let url = linkInput?.value.trim();
     if (!url || !url.includes("tiktok.com")) {
-        if (status) status.textContent = "Вставьте ссылку TikTok";
+        try {
+            const clipText = await navigator.clipboard.readText();
+            if (clipText && clipText.includes("tiktok.com")) {
+                url = clipText.trim();
+                if (linkInput) linkInput.value = url;
+            }
+        } catch (e) {}
+    }
+    if (!url || !url.includes("tiktok.com")) {
+        if (status) status.textContent = "Вставьте ссылку TikTok в поле или скопируйте в буфер";
         return;
     }
+    if (linkInput && !linkInput.value) linkInput.value = url;
     if (status) status.textContent = "Загрузка...";
     try {
         const data = await api("/api/tiktok-sound", { method: "POST", body: JSON.stringify({ url }) });
@@ -525,6 +556,7 @@ async function savePromo(id) {
         link: document.getElementById("promoLink").value.trim(),
         price_usdt: parseFloat(document.getElementById("promoPrice").value) || null,
         status: document.getElementById("promoStatus").value,
+        payment_status: document.getElementById("promoPaymentStatus")?.value || "pending",
         priority: document.getElementById("promoPriority")?.value || "medium",
         notes: document.getElementById("promoNotes").value.trim(),
         tags: document.getElementById("promoTags")?.value.trim() || "",
@@ -600,6 +632,16 @@ async function showPromoDetail(id) {
             </div>
             ${promo.link ? `<div class="card-meta" style="margin-bottom:8px;"><a href="${esc(promo.link)}" target="_blank" style="color:var(--link)">${esc(promo.link)}</a></div>` : ""}
             ${promo.price_usdt ? `<div class="card-meta"><span class="price-usdt">$${promo.price_usdt} USDT</span><span class="price-rub">≈ ${(promo.price_usdt * exchangeRate).toFixed(2)} RUB</span></div>` : ""}
+            ${promo.price_usdt ? `
+            <div style="margin-top:8px;display:flex;gap:6px;align-items:center;">
+                <span style="font-size:12px;color:var(--text-secondary);">Оплата:</span>
+                <select class="status-select payment-${promo.payment_status || 'pending'}" onchange="updatePaymentStatus(${promo.id}, this.value)" style="font-size:12px;padding:4px 8px;">
+                    <option value="pending" ${promo.payment_status === "pending" || !promo.payment_status ? "selected" : ""}>Ожидается</option>
+                    <option value="partial" ${promo.payment_status === "partial" ? "selected" : ""}>Частично оплачен</option>
+                    <option value="paid" ${promo.payment_status === "paid" ? "selected" : ""}>Выплачен</option>
+                </select>
+                <button class="btn-secondary btn-sm" onclick="generateInvoice(${promo.id})" style="font-size:11px;padding:4px 8px;">Инвойс</button>
+            </div>` : ""}
         </div>
         
         <div class="section">
@@ -640,6 +682,31 @@ async function addComment(promoId) {
 async function deleteComment(commentId, promoId) {
     await api(`/api/comments/${commentId}`, { method: "DELETE" });
     showPromoDetail(promoId);
+}
+
+async function updatePaymentStatus(promoId, status) {
+    try {
+        await api(`/api/promos/${promoId}/payment`, { method: "PATCH", body: JSON.stringify({ payment_status: status }) });
+        const p = promos.find(p => p.id === promoId);
+        if (p) p.payment_status = status;
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    } catch (e) { console.error(e); }
+}
+
+async function generateInvoice(promoId) {
+    try {
+        const resp = await fetch(`/api/promos/${promoId}/invoice`, { headers: { "X-Telegram-Init-Data": initData } });
+        const text = await resp.text();
+        openModal(`<div class="modal-title">Инвойс</div><pre style="background:rgba(0,0,0,0.3);padding:12px;border-radius:8px;font-size:12px;white-space:pre-wrap;color:var(--text);overflow-x:auto;">${esc(text)}</pre><div class="modal-actions"><button class="btn-primary" onclick="copyInvoice(this)" data-text="${esc(text)}">Копировать</button><button class="btn-secondary" onclick="closeModal()">Закрыть</button></div>`);
+    } catch (e) { console.error(e); }
+}
+
+function copyInvoice(btn) {
+    const text = btn.dataset.text;
+    navigator.clipboard?.writeText(text).then(() => {
+        btn.textContent = "Скопировано!";
+        setTimeout(() => btn.textContent = "Копировать", 1500);
+    });
 }
 
 async function archivePromo(promoId) {
@@ -899,63 +966,157 @@ async function deleteTemplate(id) {
 }
 
 
-// ── Converter ──
+// ── Converter (Multi-currency) ──
+
+let allRates = {};
 
 async function loadConverter() {
     try {
         const data = await api("/api/exchange-rate");
         exchangeRate = data.usdt_rub;
-        document.getElementById("currentRate").textContent = exchangeRate.toFixed(2);
+    } catch (e) {}
+    try {
+        allRates = await api("/api/rates");
+    } catch (e) {}
+    doConvert();
+    loadFinanceStats();
+}
+
+async function doConvert() {
+    const fromCur = document.getElementById("fromCurrency")?.value || "USDT";
+    const toCur = document.getElementById("toCurrency")?.value || "RUB";
+    const amount = parseFloat(document.getElementById("fromAmount")?.value) || 0;
+    const info = document.getElementById("rateInfo");
+    if (!amount) {
+        document.getElementById("toAmount").value = "";
+        if (info) info.textContent = "";
+        return;
+    }
+    try {
+        const data = await api(`/api/convert?amount=${amount}&from_cur=${fromCur}&to_cur=${toCur}`);
+        document.getElementById("toAmount").value = data.result;
+        if (info) info.textContent = `1 ${fromCur} ≈ ${(data.result / amount).toFixed(4)} ${toCur}`;
     } catch (e) {
-        document.getElementById("currentRate").textContent = exchangeRate.toFixed(2);
+        if (info) info.textContent = "Ошибка конвертации";
     }
 }
 
-function convertCurrency(from) {
-    if (from === "usdt") {
-        const val = parseFloat(document.getElementById("usdtInput").value) || 0;
-        document.getElementById("rubInput").value = val ? (val * exchangeRate).toFixed(2) : "";
-    } else {
-        const val = parseFloat(document.getElementById("rubInput").value) || 0;
-        document.getElementById("usdtInput").value = val ? (val / exchangeRate).toFixed(4) : "";
-    }
+function swapCurrencies() {
+    const fromSel = document.getElementById("fromCurrency");
+    const toSel = document.getElementById("toCurrency");
+    const fromAmt = document.getElementById("fromAmount");
+    const toAmt = document.getElementById("toAmount");
+    const tmpCur = fromSel.value;
+    fromSel.value = toSel.value;
+    toSel.value = tmpCur;
+    fromAmt.value = toAmt.value;
+    doConvert();
 }
 
-function swapCurrency() {
-    const usdt = document.getElementById("usdtInput").value;
-    const rub = document.getElementById("rubInput").value;
-    document.getElementById("usdtInput").value = rub;
-    document.getElementById("rubInput").value = usdt;
+async function loadFinanceStats() {
+    try {
+        const stats = await api("/api/stats");
+        const el = document.getElementById("financeStats");
+        if (el) {
+            el.innerHTML = `
+                <div class="stat-card" style="border-color:#34C759;"><div class="stat-value" style="color:#34C759;">$${stats.income_month || 0}</div><div class="stat-label">Доход/мес</div></div>
+                <div class="stat-card" style="border-color:#FF453A;"><div class="stat-value" style="color:#FF453A;">$${stats.expenses_month || 0}</div><div class="stat-label">Расходы/мес</div></div>
+                <div class="stat-card" style="border-color:var(--accent);"><div class="stat-value">${stats.net_profit_month >= 0 ? "+" : ""}$${stats.net_profit_month || 0}</div><div class="stat-label">Прибыль/мес</div></div>
+                ${stats.pending_payment > 0 ? `<div class="stat-card" style="border-color:#FFD60A;"><div class="stat-value" style="color:#FFD60A;">$${stats.pending_payment}</div><div class="stat-label">Ожидает оплаты</div></div>` : ""}
+            `;
+        }
+    } catch (e) {}
+    try {
+        const expenses = await api("/api/expenses");
+        const el = document.getElementById("expensesList");
+        if (el && expenses.length > 0) {
+            el.innerHTML = `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Последние расходы:</div>` + expenses.slice(0, 5).map(e => `
+                <div class="card" style="padding:10px 12px;">
+                    <div class="card-header">
+                        <span class="card-title" style="font-size:13px;">${esc(e.description || "Расход")}</span>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <span style="color:#FF453A;font-size:12px;font-weight:600;">-$${e.amount} ${e.currency}</span>
+                            <button class="note-action-btn" onclick="deleteExpense(${e.id})">✕</button>
+                        </div>
+                    </div>
+                    <div class="card-meta"><span>${formatDate(e.created_at)}</span><span>${esc(e.category)}</span></div>
+                </div>`).join("");
+        }
+    } catch (e) {}
+}
+
+function showAddExpense() {
+    openModal(`
+        <div class="modal-title">Новый расход</div>
+        <div class="input-group"><label>Сумма</label><input type="number" id="expenseAmount" placeholder="0.00" step="0.01"></div>
+        <div class="input-group"><label>Валюта</label>
+            <select id="expenseCurrency"><option value="USDT" selected>USDT</option><option value="USD">USD</option><option value="RUB">RUB</option><option value="EUR">EUR</option></select>
+        </div>
+        <div class="input-group"><label>Описание</label><input type="text" id="expenseDesc" placeholder="На что потрачено?"></div>
+        <div class="input-group"><label>Категория</label>
+            <select id="expenseCat"><option value="sources">Исходники</option><option value="plugins">Плагины</option><option value="proxy">Прокси</option><option value="ads">Реклама</option><option value="other" selected>Другое</option></select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal()">Отмена</button>
+            <button class="btn-primary" onclick="saveExpense()">Добавить</button>
+        </div>
+    `);
+}
+
+async function saveExpense() {
+    const data = {
+        amount: parseFloat(document.getElementById("expenseAmount").value) || 0,
+        currency: document.getElementById("expenseCurrency").value,
+        description: document.getElementById("expenseDesc").value.trim(),
+        category: document.getElementById("expenseCat").value,
+    };
+    if (!data.amount) return;
+    await api("/api/expenses", { method: "POST", body: JSON.stringify(data) });
+    closeModal();
+    loadConverter();
+    loadDashboard();
+}
+
+async function deleteExpense(id) {
+    await api(`/api/expenses/${id}`, { method: "DELETE" });
+    loadConverter();
+    loadDashboard();
 }
 
 // ── Reminders ──
 
-function showAddReminder() {
+function showAddReminder(editId, editData) {
+    const isEdit = !!editId;
+    const title = isEdit ? "Редактировать напоминание" : "Новое напоминание";
+    const btnText = isEdit ? "Сохранить" : "Добавить";
+    const dateVal = editData?.remind_at ? editData.remind_at.replace(" ", "T").slice(0, 16) : "";
+    const msgVal = editData?.message || "";
+    const promoVal = editData?.promo_id || "";
     openModal(`
-        <div class="modal-title">Новое напоминание</div>
+        <div class="modal-title">${title}</div>
         <div class="input-group">
             <label>Дата и время</label>
-            <input type="datetime-local" id="reminderDate">
+            <input type="datetime-local" id="reminderDate" value="${dateVal}">
         </div>
         <div class="input-group">
             <label>Сообщение</label>
-            <input type="text" id="reminderMessage" placeholder="О чем напомнить?">
+            <input type="text" id="reminderMessage" placeholder="О чем напомнить?" value="${esc(msgVal)}">
         </div>
         <div class="input-group">
             <label>Привязать к промо (необязательно)</label>
             <select id="reminderPromo">
                 <option value="">Без привязки</option>
-                ${promos.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("")}
+                ${promos.map((p) => `<option value="${p.id}" ${p.id == promoVal ? "selected" : ""}>${esc(p.name)}</option>`).join("")}
             </select>
         </div>
         <div class="modal-actions">
             <button class="btn-secondary" onclick="closeModal()">Отмена</button>
-            <button class="btn-primary" onclick="saveReminder()">Сохранить</button>
+            <button class="btn-primary" onclick="saveReminder(${editId || 'null'})">${btnText}</button>
         </div>
     `);
 }
 
-async function saveReminder() {
+async function saveReminder(editId) {
     const data = {
         remind_at: document.getElementById("reminderDate").value?.replace("T", " "),
         message: document.getElementById("reminderMessage").value.trim(),
@@ -966,7 +1127,11 @@ async function saveReminder() {
         return;
     }
     try {
-        await api("/api/reminders", { method: "POST", body: JSON.stringify(data) });
+        if (editId) {
+            await api(`/api/reminders/${editId}`, { method: "PUT", body: JSON.stringify(data) });
+        } else {
+            await api("/api/reminders", { method: "POST", body: JSON.stringify(data) });
+        }
         closeModal();
         loadDashboard();
         if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
@@ -1041,6 +1206,14 @@ function statusLabel(status) {
         case "done": return "Готово";
         case "in_progress": return "В процессе";
         default: return "Не готово";
+    }
+}
+
+function paymentLabel(status) {
+    switch (status) {
+        case "paid": return "Оплачен";
+        case "partial": return "Частично";
+        default: return "Ожидается";
     }
 }
 

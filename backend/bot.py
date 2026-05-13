@@ -189,6 +189,35 @@ async def check_deadlines(application: Application):
         await asyncio.sleep(60)
 
 
+async def check_payment_overdue(application: Application):
+    notified_payments = set()
+    while True:
+        try:
+            async with aiosqlite.connect(DB_PATH) as db:
+                db.row_factory = aiosqlite.Row
+                rows = await db.execute(
+                    "SELECT * FROM promos WHERE status = 'done' AND payment_status = 'pending' AND price_usdt > 0"
+                )
+                overdue = await rows.fetchall()
+                for promo in overdue:
+                    key = f"pay_{promo['id']}"
+                    if key not in notified_payments:
+                        try:
+                            adv = promo["advertiser_name"] or "рекламодателю"
+                            await application.bot.send_message(
+                                chat_id=promo["user_id"],
+                                text=f"💰 Пора напомнить {adv}, что пора платить по счетам!\n"
+                                     f"Промо: {promo['name']}\n"
+                                     f"Сумма: ${promo['price_usdt']} USDT",
+                            )
+                            notified_payments.add(key)
+                        except Exception as e:
+                            logger.error(f"Payment notify error promo {promo['id']}: {e}")
+        except Exception as e:
+            logger.error(f"Payment check error: {e}")
+        await asyncio.sleep(3600)
+
+
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = update.effective_user.id
     if telegram_id not in ADMIN_IDS:
@@ -257,11 +286,13 @@ def main():
             await application.updater.start_polling()
             reminder_task = asyncio.create_task(send_reminder_notifications(application))
             deadline_task = asyncio.create_task(check_deadlines(application))
+            payment_task = asyncio.create_task(check_payment_overdue(application))
             try:
                 await asyncio.Event().wait()
             finally:
                 reminder_task.cancel()
                 deadline_task.cancel()
+                payment_task.cancel()
                 await application.updater.stop()
                 await application.stop()
 
