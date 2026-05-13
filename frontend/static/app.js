@@ -21,16 +21,17 @@ function initParticles() {
 
     function createParticles() {
         particles = [];
-        const count = Math.floor((w * h) / 12000);
+        const count = Math.floor((w * h) / 8000);
         for (let i = 0; i < count; i++) {
             particles.push({
                 x: Math.random() * w,
                 y: Math.random() * h,
-                r: Math.random() * 1.5 + 0.3,
-                dx: (Math.random() - 0.5) * 0.15,
-                dy: (Math.random() - 0.5) * 0.15,
-                alpha: Math.random() * 0.4 + 0.1,
+                r: Math.random() * 2.5 + 0.5,
+                dx: (Math.random() - 0.5) * 0.25,
+                dy: (Math.random() - 0.5) * 0.25,
+                alpha: Math.random() * 0.5 + 0.15,
                 pulse: Math.random() * Math.PI * 2,
+                glow: Math.random() * 6 + 3,
             });
         }
     }
@@ -40,16 +41,22 @@ function initParticles() {
         for (const p of particles) {
             p.x += p.dx;
             p.y += p.dy;
-            p.pulse += 0.008;
+            p.pulse += 0.012;
             if (p.x < 0) p.x = w;
             if (p.x > w) p.x = 0;
             if (p.y < 0) p.y = h;
             if (p.y > h) p.y = 0;
-            const a = p.alpha + Math.sin(p.pulse) * 0.15;
+            const a = p.alpha + Math.sin(p.pulse) * 0.2;
+            const al = Math.max(0, a);
+
+            ctx.save();
+            ctx.shadowBlur = p.glow;
+            ctx.shadowColor = `rgba(139, 92, 246, ${al * 0.8})`;
             ctx.beginPath();
             ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(139, 92, 246, ${Math.max(0, a)})`;
+            ctx.fillStyle = `rgba(160, 120, 255, ${al})`;
             ctx.fill();
+            ctx.restore();
         }
         requestAnimationFrame(draw);
     }
