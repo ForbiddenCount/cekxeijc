@@ -143,8 +143,8 @@ async function loadDashboard() {
         const profile = await api("/api/profile");
         document.getElementById("statAdvertisers").textContent = profile.advertisers_count;
         document.getElementById("statPromos").textContent = profile.promos_count;
-        document.getElementById("statDone").textContent = profile.done_count;
-        document.getElementById("statPending").textContent = profile.promos_count - profile.done_count;
+        document.getElementById("statYokoso").textContent = `${profile.yokoso_done}/${profile.yokoso_total}`;
+        document.getElementById("statSako").textContent = `${profile.sako_done}/${profile.sako_total}`;
     } catch (e) {
         console.error(e);
     }
@@ -328,8 +328,10 @@ function filterCategoryPromos(category) {
 
 function renderCategoryPromos(category) {
     const statusFilter = document.getElementById(`${category}FilterStatus`)?.value;
+    const searchQuery = (document.getElementById(`${category}Search`)?.value || "").toLowerCase().trim();
     let filtered = categoryPromos[category] || [];
     if (statusFilter) filtered = filtered.filter((p) => p.status === statusFilter);
+    if (searchQuery) filtered = filtered.filter((p) => p.name.toLowerCase().includes(searchQuery) || (p.advertiser_name || "").toLowerCase().includes(searchQuery));
     promos = categoryPromos[category] || [];
 
     const container = document.getElementById(`${category}List`);
@@ -708,25 +710,6 @@ async function loadProfile() {
         console.error(e);
     }
 
-    try {
-        const notes = await api("/api/notes");
-        const container = document.getElementById("allNotesList");
-        if (notes.length === 0) {
-            container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><div class="empty-text">Нет заметок</div></div>';
-        } else {
-            container.innerHTML = notes.map((n) => `
-                <div class="note-item">
-                    <div class="note-content" id="note-text-${n.id}">${esc(n.content)}</div>
-                    <div class="note-date" id="note-date-${n.id}" data-raw="${esc(n.created_at || '')}">${formatDate(n.created_at)}</div>
-                    <div class="note-actions">
-                        <button class="note-action-btn" onclick="editNote(${n.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-                        <button class="note-action-btn" onclick="deleteNote(${n.id})">✕</button>
-                    </div>
-                </div>`).join("");
-        }
-    } catch (e) {
-        console.error(e);
-    }
 }
 
 // ── Modal ──

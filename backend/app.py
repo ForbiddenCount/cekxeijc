@@ -146,11 +146,33 @@ async def get_profile(user=Depends(get_current_user), db=Depends(get_db)):
     )
     done = await done_count.fetchone()
 
+    yokoso_total = await db.execute(
+        "SELECT COUNT(*) as cnt FROM promos WHERE user_id = ? AND category = 'yokoso'", (telegram_id,)
+    )
+    yokoso_t = await yokoso_total.fetchone()
+    yokoso_done = await db.execute(
+        "SELECT COUNT(*) as cnt FROM promos WHERE user_id = ? AND category = 'yokoso' AND status = 'done'", (telegram_id,)
+    )
+    yokoso_d = await yokoso_done.fetchone()
+
+    sako_total = await db.execute(
+        "SELECT COUNT(*) as cnt FROM promos WHERE user_id = ? AND category = 'sako'", (telegram_id,)
+    )
+    sako_t = await sako_total.fetchone()
+    sako_done = await db.execute(
+        "SELECT COUNT(*) as cnt FROM promos WHERE user_id = ? AND category = 'sako' AND status = 'done'", (telegram_id,)
+    )
+    sako_d = await sako_done.fetchone()
+
     return {
         **dict(profile),
         "advertisers_count": adv["cnt"],
         "promos_count": promo["cnt"],
         "done_count": done["cnt"],
+        "yokoso_total": yokoso_t["cnt"],
+        "yokoso_done": yokoso_d["cnt"],
+        "sako_total": sako_t["cnt"],
+        "sako_done": sako_d["cnt"],
     }
 
 

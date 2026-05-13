@@ -7,10 +7,10 @@
     --accent-light: #A78BFA;
     --accent-dim: rgba(139, 92, 246, 0.15);
     --accent-glow: rgba(139, 92, 246, 0.25);
-    --card-bg: rgba(18, 18, 22, 0.92);
-    --card-bg-accent: rgba(139, 92, 246, 0.12);
-    --border: rgba(255, 255, 255, 0.12);
-    --border-accent: rgba(139, 92, 246, 0.3);
+    --card-bg: rgba(10, 10, 14, 0.96);
+    --card-bg-accent: rgba(139, 92, 246, 0.1);
+    --border: rgba(255, 255, 255, 0.08);
+    --border-accent: rgba(139, 92, 246, 0.25);
     --radius: 16px;
     --radius-sm: 12px;
     --radius-xs: 8px;
@@ -56,7 +56,7 @@ body {
     right: 10px;
     display: flex;
     align-items: center;
-    background: rgba(12, 12, 14, 0.98);
+    background: rgba(6, 6, 8, 0.98);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border-radius: 22px;
@@ -279,17 +279,18 @@ body {
     border-radius: var(--radius);
     padding: 18px;
     text-align: center;
+    cursor: pointer;
     transition: all 0.2s;
 }
 
 .stat-card.accent {
     border-color: var(--border-accent);
-    background: rgba(139, 92, 246, 0.12);
+    background: rgba(139, 92, 246, 0.08);
 }
 
 .stat-card.warning {
-    border-color: rgba(255, 255, 255, 0.1);
-    background: rgba(18, 18, 22, 0.85);
+    border-color: rgba(255, 255, 255, 0.06);
+    background: rgba(8, 8, 12, 0.95);
 }
 
 .stat-value {
@@ -405,7 +406,7 @@ body {
 }
 
 .status-not_ready {
-    background: rgba(18, 18, 22, 0.8);
+    background: rgba(8, 8, 12, 0.9);
     color: #888888;
     border: 1px solid rgba(255, 255, 255, 0.12);
 }
@@ -415,7 +416,7 @@ body {
     font-size: 12px;
     padding: 4px 10px;
     border-radius: var(--radius-xs);
-    background: rgba(18, 18, 22, 0.8);
+    background: rgba(8, 8, 12, 0.9);
     color: var(--text-secondary);
 }
 
@@ -455,7 +456,8 @@ body {
 }
 
 .filter-bar select {
-    flex: 1;
+    flex: 0 0 auto;
+    width: 120px;
     background: var(--card-bg);
     color: var(--text);
     border: 1px solid var(--border);
@@ -464,6 +466,27 @@ body {
     font-size: 13px;
     -webkit-appearance: none;
     appearance: none;
+}
+
+.search-input {
+    flex: 1;
+    background: var(--card-bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.search-input:focus {
+    border-color: var(--accent);
+}
+
+.search-input::placeholder {
+    color: var(--text-secondary);
 }
 
 /* ── Converter ── */
@@ -478,7 +501,7 @@ body {
     text-align: center;
     margin-bottom: 28px;
     padding: 20px;
-    background: rgba(139, 92, 246, 0.1);
+    background: rgba(139, 92, 246, 0.06);
     border: 1px solid var(--border-accent);
     border-radius: var(--radius);
 }
@@ -609,7 +632,7 @@ body {
 .input-group textarea,
 .input-group select {
     width: 100%;
-    background: rgba(14, 14, 18, 0.9);
+    background: rgba(8, 8, 12, 0.95);
     color: var(--text);
     border: 1px solid var(--border);
     padding: 14px;
@@ -728,7 +751,7 @@ body {
 
 /* ── Notes ── */
 .note-item {
-    background: rgba(18, 18, 22, 0.9);
+    background: rgba(8, 8, 12, 0.95);
     border-left: 2px solid var(--accent);
     border: 1px solid var(--border);
     border-left: 2px solid var(--accent);

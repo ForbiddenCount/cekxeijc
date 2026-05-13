@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 import aiosqlite
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ContextTypes
 
 from .database import DB_PATH, init_db
 
@@ -18,27 +18,51 @@ ADMIN_IDS = [1977007206, 1322034030]
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_id = user.id
+    first_name = user.first_name or "User"
+
+    # Step 1: Show ID and ask to confirm
     keyboard = InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(
-                    "PROMO",
-                    web_app=WebAppInfo(url=WEBAPP_URL),
-                )
-            ]
-        ]
+        [[InlineKeyboardButton("✅ Подтвердить ID", callback_data="confirm_id")]]
     )
     await update.message.reply_text(
-        "👋 Привет! Я твой менеджер рекламных кампаний.\n\n"
-        "Здесь ты можешь:\n"
-        "• Добавлять рекламодателей\n"
-        "• Управлять промо-ссылками\n"
-        "• Ставить дедлайны и статусы\n"
-        "• Вести заметки\n"
-        "• Конвертировать USDT/RUB\n"
-        "• Получать уведомления\n\n"
-        "Нажми кнопку ниже, чтобы открыть приложение 👇",
+        f"<b>Promo Empire</b>\n"
+        f"Менеджер рекламных кампаний\n\n"
+        f"👤 <b>{first_name}</b>\n"
+        f"🆔 <code>{user_id}</code>\n\n"
+        f"Для доступа к приложению подтвердите свой ID.",
         reply_markup=keyboard,
+        parse_mode="HTML",
+    )
+
+
+async def confirm_id_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user = query.from_user
+    user_id = user.id
+
+    # Send ID as separate message (like Editing Bot)
+    await query.message.reply_text(
+        f"ID: <code>{user_id}</code>",
+        parse_mode="HTML",
+    )
+
+    # Now show the app button
+    keyboard = InlineKeyboardMarkup(
+        [[InlineKeyboardButton("PROMO", web_app=WebAppInfo(url=WEBAPP_URL))]]
+    )
+    await query.message.reply_text(
+        f"<b>Promo Empire</b>\n"
+        f"Управление промо-кампаниями\n\n"
+        f"▸ Yokoso & Sako промо\n"
+        f"▸ Дедлайны и статусы\n"
+        f"▸ Конвертер USDT/RUB\n"
+        f"▸ Уведомления\n\n"
+        f"Нажмите ниже, чтобы открыть 👇",
+        reply_markup=keyboard,
+        parse_mode="HTML",
     )
 
 
@@ -215,6 +239,7 @@ def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CallbackQueryHandler(confirm_id_callback, pattern="^confirm_id$"))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CommandHandler("admin", admin_command))
