@@ -104,10 +104,6 @@ async function api(path, options = {}) {
 async function auth() {
     try {
         currentUser = await api("/api/auth", { method: "POST" });
-        if (currentUser && currentUser.is_admin) {
-            const adminSection = document.getElementById("adminSection");
-            if (adminSection) adminSection.style.display = "";
-        }
     } catch (e) {
         console.error("Auth failed:", e);
     }
@@ -132,7 +128,6 @@ function showPage(page) {
 
 async function loadMore() {
     loadProfile();
-    if (currentUser?.is_admin) loadAdminPanel();
 }
 
 function updateNavBadges(profile) {
@@ -754,6 +749,23 @@ async function loadProfile() {
         document.getElementById("profileUsername").textContent = profile.username ? `@${profile.username}` : "—";
         document.getElementById("profilePromoCount").textContent = profile.promos_count;
         document.getElementById("profileDoneCount").textContent = profile.done_count;
+        // Load avatar
+        const avatarEl = document.getElementById("profileAvatar");
+        if (profile.telegram_id) {
+            const img = new Image();
+            img.onload = () => { avatarEl.innerHTML = ""; avatarEl.appendChild(img); };
+            img.src = `/api/avatar/${profile.telegram_id}`;
+            img.style.width = "100%";
+            img.style.height = "100%";
+            img.style.borderRadius = "50%";
+            img.style.objectFit = "cover";
+        }
+        // Admin stats inline
+        const adminInline = document.getElementById("adminInlineSection");
+        if (profile.is_admin && adminInline) {
+            adminInline.style.display = "block";
+            loadAdminInline();
+        }
     } catch (e) {
         console.error(e);
     }
@@ -788,16 +800,13 @@ function statusLabel(status) {
     }
 }
 
-// ── Admin Panel ──
+// ── Admin (inline in profile) ──
 
-async function loadAdminPanel() {
-    if (!currentUser || !currentUser.is_admin) return;
+async function loadAdminInline() {
     try {
         const stats = await api("/api/admin/stats");
         document.getElementById("adminStatUsers").textContent = stats.total_users;
-        document.getElementById("adminStatAdvertisers").textContent = stats.total_advertisers;
         document.getElementById("adminStatPromos").textContent = stats.total_promos;
-        document.getElementById("adminStatDone").textContent = stats.done_promos;
     } catch (e) {
         console.error(e);
     }
@@ -805,22 +814,17 @@ async function loadAdminPanel() {
         const users = await api("/api/admin/users");
         const container = document.getElementById("adminUsersList");
         if (!users.length) {
-            container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg><div class="empty-text">Нет пользователей</div></div>';
+            container.innerHTML = '<div class="empty-state"><div class="empty-text">Нет пользователей</div></div>';
             return;
         }
         container.innerHTML = users.map(u => `
-            <div class="card">
+            <div class="card" onclick="adminViewUser(${u.telegram_id})">
                 <div class="card-header">
                     <div class="card-title">${esc(u.first_name || "")} ${esc(u.last_name || "")}</div>
-                    <div class="card-actions">
-                        <button class="btn-icon" onclick="adminViewUser(${u.telegram_id})"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-                        <button class="btn-icon danger" onclick="adminDeleteUser(${u.telegram_id})">✕</button>
-                    </div>
+                    <button class="btn-icon danger" onclick="event.stopPropagation(); adminDeleteUser(${u.telegram_id})">✕</button>
                 </div>
                 <div class="card-body">
-                    <span class="card-meta">ID: ${u.telegram_id}</span>
-                    ${u.username ? `<span class="card-meta">@${esc(u.username)}</span>` : ""}
-                    <span class="card-meta">Рекл: ${u.advertisers_count} · Промо: ${u.promos_count} · Готово: ${u.done_count}</span>
+                    <span class="card-meta">ID: ${u.telegram_id} ${u.username ? `· @${esc(u.username)}` : ""} · Промо: ${u.promos_count} · Готово: ${u.done_count}</span>
                 </div>
             </div>
         `).join("");
@@ -859,7 +863,7 @@ async function adminDeleteUser(telegramId) {
     if (!confirm(`Удалить пользователя ${telegramId} и все его данные?`)) return;
     try {
         await api(`/api/admin/users/${telegramId}`, { method: "DELETE" });
-        loadAdminPanel();
+        loadAdminInline();
     } catch (e) {
         console.error(e);
     }

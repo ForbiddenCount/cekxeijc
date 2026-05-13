@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, unquote
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -166,14 +166,36 @@ async def get_profile(user=Depends(get_current_user), db=Depends(get_db)):
 
     return {
         **dict(profile),
-        "advertisers_count": adv["cnt"],
         "promos_count": promo["cnt"],
         "done_count": done["cnt"],
         "yokoso_total": yokoso_t["cnt"],
         "yokoso_done": yokoso_d["cnt"],
         "sako_total": sako_t["cnt"],
         "sako_done": sako_d["cnt"],
+        "is_admin": telegram_id in ADMIN_IDS,
     }
+
+
+@app.get("/api/avatar/{user_id}")
+async def get_avatar(user_id: int):
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getUserProfilePhotos?user_id={user_id}&limit=1")
+            data = resp.json()
+            if not data.get("ok") or not data["result"]["photos"]:
+                raise HTTPException(404, "No avatar")
+            file_id = data["result"]["photos"][0][-1]["file_id"]
+            file_resp = await client.get(f"https://api.telegram.org/bot{BOT_TOKEN}/getFile?file_id={file_id}")
+            file_data = file_resp.json()
+            if not file_data.get("ok"):
+                raise HTTPException(404, "No avatar")
+            file_path = file_data["result"]["file_path"]
+            photo_resp = await client.get(f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}")
+            return Response(content=photo_resp.content, media_type="image/jpeg")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(404, "No avatar")
 
 
 # ── Advertisers ──
