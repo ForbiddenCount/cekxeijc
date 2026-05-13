@@ -6,9 +6,64 @@ let advertisers = [];
 let promos = [];
 let exchangeRate = 92;
 
+// ── Particles ──
+
+function initParticles() {
+    const canvas = document.getElementById("particleCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let w, h, particles;
+
+    function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+    }
+
+    function createParticles() {
+        particles = [];
+        const count = Math.floor((w * h) / 12000);
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: Math.random() * w,
+                y: Math.random() * h,
+                r: Math.random() * 1.5 + 0.3,
+                dx: (Math.random() - 0.5) * 0.15,
+                dy: (Math.random() - 0.5) * 0.15,
+                alpha: Math.random() * 0.4 + 0.1,
+                pulse: Math.random() * Math.PI * 2,
+            });
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, w, h);
+        for (const p of particles) {
+            p.x += p.dx;
+            p.y += p.dy;
+            p.pulse += 0.008;
+            if (p.x < 0) p.x = w;
+            if (p.x > w) p.x = 0;
+            if (p.y < 0) p.y = h;
+            if (p.y > h) p.y = 0;
+            const a = p.alpha + Math.sin(p.pulse) * 0.15;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(139, 92, 246, ${Math.max(0, a)})`;
+            ctx.fill();
+        }
+        requestAnimationFrame(draw);
+    }
+
+    resize();
+    createParticles();
+    draw();
+    window.addEventListener("resize", () => { resize(); createParticles(); });
+}
+
 // ── Init ──
 
 document.addEventListener("DOMContentLoaded", async () => {
+    initParticles();
     if (tg) {
         tg.ready();
         tg.expand();
