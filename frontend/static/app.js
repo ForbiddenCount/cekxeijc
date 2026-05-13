@@ -170,6 +170,33 @@ async function loadDashboard() {
     }
 
     try {
+        const stats = await api("/api/stats");
+        const statsExtra = document.getElementById("statsExtra");
+        if (statsExtra) {
+            statsExtra.innerHTML = `
+                <div class="stat-card" style="border-color:var(--accent);">
+                    <div class="stat-value">${stats.week_done}</div>
+                    <div class="stat-label">За неделю</div>
+                </div>
+                <div class="stat-card" style="border-color:var(--accent);">
+                    <div class="stat-value">${stats.month_done}</div>
+                    <div class="stat-label">За месяц</div>
+                </div>
+                <div class="stat-card" onclick="showArchive()" style="cursor:pointer;">
+                    <div class="stat-value">${stats.archived}</div>
+                    <div class="stat-label">Архив</div>
+                </div>
+                ${stats.high_priority ? `<div class="stat-card" style="border-color:#FF453A;">
+                    <div class="stat-value" style="color:#FF453A;">${stats.high_priority}</div>
+                    <div class="stat-label">Срочных</div>
+                </div>` : ""}
+            `;
+        }
+    } catch (e) {
+        console.error(e);
+    }
+
+    try {
         const reminders = await api("/api/reminders");
         const container = document.getElementById("remindersList");
         if (reminders.length === 0) {
@@ -328,11 +355,13 @@ function renderPromos() {
     container.innerHTML = filtered.map((p) => {
         const tagsHtml = p.tags ? `<div class="card-meta">${p.tags.split(",").map(t => `<span class="tag-badge">${esc(t.trim())}</span>`).join("")}</div>` : "";
         const checkboxHtml = bulkMode ? `<input type="checkbox" class="bulk-check" data-id="${p.id}" onclick="event.stopPropagation(); updateBulkCount()" style="width:18px;height:18px;margin-right:8px;accent-color:var(--accent);">` : "";
+        const priorityDot = p.priority === "high" ? '<span class="priority-dot high"></span>' : p.priority === "low" ? '<span class="priority-dot low"></span>' : "";
         return `
             <div class="card" onclick="${bulkMode ? `toggleBulkCheck(${p.id})` : `showPromoDetail(${p.id})`}">
                 <div class="card-header">
                     <div style="display:flex;align-items:center;">
                         ${checkboxHtml}
+                        ${priorityDot}
                         <span class="card-title">${esc(p.name)}</span>
                     </div>
                     <select class="status-select ${p.status}" onchange="event.stopPropagation(); changePromoStatus(${p.id}, this.value)" onclick="event.stopPropagation()">
@@ -393,6 +422,14 @@ function showAddPromo(existing = null) {
         <div class="input-group">
             <label>Тэги (через запятую)</label>
             <input type="text" id="promoTags" value="${esc(existing?.tags || "")}" placeholder="music, tiktok, promo">
+        </div>
+        <div class="input-group">
+            <label>Приоритет</label>
+            <select id="promoPriority">
+                <option value="low" ${existing?.priority === "low" ? "selected" : ""}>Низкий</option>
+                <option value="medium" ${!existing || existing?.priority === "medium" ? "selected" : ""}>Средний</option>
+                <option value="high" ${existing?.priority === "high" ? "selected" : ""}>Высокий</option>
+            </select>
         </div>
         <div class="input-group">
             <label>Заметки</label>
@@ -488,6 +525,7 @@ async function savePromo(id) {
         link: document.getElementById("promoLink").value.trim(),
         price_usdt: parseFloat(document.getElementById("promoPrice").value) || null,
         status: document.getElementById("promoStatus").value,
+        priority: document.getElementById("promoPriority")?.value || "medium",
         notes: document.getElementById("promoNotes").value.trim(),
         tags: document.getElementById("promoTags")?.value.trim() || "",
     };
@@ -529,21 +567,43 @@ async function showPromoDetail(id) {
         console.error(e);
     }
 
+    let commentsHtml = "";
+    try {
+        const comments = await api(`/api/promos/${id}/comments`);
+        commentsHtml = comments.map(c => `
+            <div class="note-item">
+                <div class="note-content">${esc(c.content)}</div>
+                <div class="note-date">${formatDate(c.created_at)}</div>
+                <div class="note-actions"><button class="note-action-btn" onclick="deleteComment(${c.id}, ${id})">✕</button></div>
+            </div>`).join("");
+    } catch (e) {}
+
+    let historyHtml = "";
+    try {
+        const history = await api(`/api/promos/${id}/history`);
+        historyHtml = history.slice(0, 5).map(h => `
+            <div style="font-size:11px;color:var(--text-secondary);padding:4px 0;border-bottom:1px solid var(--border);">
+                ${statusLabel(h.old_status)} → ${statusLabel(h.new_status)} <span style="float:right;">${formatDate(h.created_at)}</span>
+            </div>`).join("");
+    } catch (e) {}
+
+    const priorityLabel = {low: "Низкий", medium: "Средний", high: "Высокий"};
+    const priorityColor = {low: "var(--text-secondary)", medium: "var(--accent)", high: "#FF453A"};
+
     openModal(`
         <div class="modal-title">${esc(promo.name)}</div>
         <div style="margin-bottom:16px;">
             <div class="card-meta" style="margin-bottom:8px;">
                 <span>${esc(promo.advertiser_name || "—")}</span>
                 <span class="status status-${promo.status}">${statusLabel(promo.status)}</span>
+                <span style="color:${priorityColor[promo.priority] || 'var(--text-secondary)'};font-size:11px;">${priorityLabel[promo.priority] || "Средний"}</span>
             </div>
             ${promo.link ? `<div class="card-meta" style="margin-bottom:8px;"><a href="${esc(promo.link)}" target="_blank" style="color:var(--link)">${esc(promo.link)}</a></div>` : ""}
             ${promo.price_usdt ? `<div class="card-meta"><span class="price-usdt">$${promo.price_usdt} USDT</span><span class="price-rub">≈ ${(promo.price_usdt * exchangeRate).toFixed(2)} RUB</span></div>` : ""}
         </div>
         
         <div class="section">
-            <div class="section-header">
-                <h2>Заметки</h2>
-            </div>
+            <div class="section-header"><h2>Заметки</h2></div>
             <div id="promoNotesContainer">${notesHtml || '<div class="empty-state"><div class="empty-text">Нет заметок</div></div>'}</div>
             <div style="display:flex;gap:8px;margin-top:10px;">
                 <input type="text" id="newNoteInput" placeholder="Добавить заметку..." style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:10px;border-radius:var(--radius-sm);font-size:14px;">
@@ -551,11 +611,69 @@ async function showPromoDetail(id) {
             </div>
         </div>
 
+        <div class="section">
+            <div class="section-header"><h2>Комментарии</h2></div>
+            <div id="promoCommentsContainer">${commentsHtml || '<div style="font-size:12px;color:var(--text-secondary);">Нет комментариев</div>'}</div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+                <input type="text" id="newCommentInput" placeholder="Написать комментарий..." style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:10px;border-radius:var(--radius-sm);font-size:14px;">
+                <button class="btn-primary btn-sm" onclick="addComment(${id})">+</button>
+            </div>
+        </div>
+
+        ${historyHtml ? `<div class="section"><div class="section-header"><h2>История</h2></div>${historyHtml}</div>` : ""}
+
         <div class="modal-actions">
+            <button class="btn-secondary" onclick="archivePromo(${id})">В архив</button>
             <button class="btn-secondary" onclick="closeModal()">Закрыть</button>
             <button class="btn-primary" onclick="closeModal(); showAddPromo(${JSON.stringify(promo).replace(/"/g, '&quot;')})">Редактировать</button>
         </div>
     `);
+}
+
+async function addComment(promoId) {
+    const input = document.getElementById("newCommentInput");
+    if (!input?.value.trim()) return;
+    await api(`/api/promos/${promoId}/comments`, { method: "POST", body: JSON.stringify({ content: input.value.trim() }) });
+    showPromoDetail(promoId);
+}
+
+async function deleteComment(commentId, promoId) {
+    await api(`/api/comments/${commentId}`, { method: "DELETE" });
+    showPromoDetail(promoId);
+}
+
+async function archivePromo(promoId) {
+    await api(`/api/promos/${promoId}/archive`, { method: "PATCH", body: JSON.stringify({ archived: true }) });
+    closeModal();
+    loadPromos();
+    loadDashboard();
+    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+}
+
+async function unarchivePromo(promoId) {
+    await api(`/api/promos/${promoId}/archive`, { method: "PATCH", body: JSON.stringify({ archived: false }) });
+    showArchive();
+    loadPromos();
+    loadDashboard();
+}
+
+async function showArchive() {
+    try {
+        const archived = await api("/api/promos/archived");
+        let html = archived.map(p => `
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">${esc(p.name)}</span>
+                    <button class="btn-secondary btn-xs" onclick="unarchivePromo(${p.id})">Восстановить</button>
+                </div>
+                ${p.advertiser_name ? `<div class="card-subtitle">${esc(p.advertiser_name)}</div>` : ""}
+                <div class="card-meta"><span class="status status-${p.status}">${statusLabel(p.status)}</span></div>
+            </div>`).join("");
+        if (!html) html = '<div class="empty-state"><div class="empty-text">Архив пуст</div></div>';
+        openModal(`<div class="modal-title">Архив</div>${html}<div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Закрыть</button></div>`);
+    } catch (e) {
+        console.error(e);
+    }
 }
 
 async function addNoteToPromo(promoId) {

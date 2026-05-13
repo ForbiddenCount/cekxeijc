@@ -512,6 +512,22 @@ body {
     opacity: 0.6;
 }
 
+/* ── Priority dots ── */
+.priority-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+.priority-dot.high {
+    background: #FF453A;
+    box-shadow: 0 0 6px #FF453A;
+}
+.priority-dot.low {
+    background: var(--text-secondary);
+}
+
 /* ── TikTok user results ── */
 .tt-user-result {
     display: flex;

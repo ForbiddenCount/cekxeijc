@@ -292,6 +292,13 @@ async def export_promos(user=Depends(get_current_user), db=Depends(get_db)):
     return PlainTextResponse("\n".join(lines))
 
 
+@app.get("/api/promos/archived")
+async def list_archived(user=Depends(get_current_user), db=Depends(get_db)):
+    telegram_id = user.get("id", 0)
+    rows = await db.execute("SELECT * FROM promos WHERE user_id = ? AND archived = 1 ORDER BY created_at DESC", (telegram_id,))
+    return [dict(r) for r in await rows.fetchall()]
+
+
 @app.get("/api/promos")
 async def list_promos(
     category: str | None = None,
@@ -299,12 +306,12 @@ async def list_promos(
     db=Depends(get_db),
 ):
     telegram_id = user.get("id", 0)
-    base = "SELECT * FROM promos WHERE user_id = ?"
+    base = "SELECT * FROM promos WHERE user_id = ? AND archived = 0"
     params = [telegram_id]
     if category:
         base += " AND category = ?"
         params.append(category)
-    base += " ORDER BY deadline ASC NULLS LAST, created_at DESC"
+    base += " ORDER BY created_at DESC"
     rows = await db.execute(base, params)
     return [dict(r) for r in await rows.fetchall()]
 
@@ -314,7 +321,7 @@ async def create_promo(request: Request, user=Depends(get_current_user), db=Depe
     data = await request.json()
     telegram_id = user.get("id", 0)
     await db.execute(
-        "INSERT INTO promos (user_id, name, link, price_usdt, status, deadline, notes, category, advertiser_name, advertiser_id, tags) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",
+        "INSERT INTO promos (user_id, name, link, price_usdt, status, deadline, notes, category, advertiser_name, advertiser_id, tags, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)",
         (
             telegram_id,
             data["name"],
@@ -326,6 +333,7 @@ async def create_promo(request: Request, user=Depends(get_current_user), db=Depe
             data.get("category", "yokoso"),
             data.get("advertiser_name", ""),
             data.get("tags", ""),
+            data.get("priority", "medium"),
         ),
     )
     await db.commit()
@@ -338,7 +346,7 @@ async def update_promo(promo_id: int, request: Request, user=Depends(get_current
     data = await request.json()
     telegram_id = user.get("id", 0)
     await db.execute(
-        "UPDATE promos SET name=?, link=?, price_usdt=?, status=?, deadline=?, notes=?, category=?, advertiser_name=?, tags=? WHERE id=? AND user_id=?",
+        "UPDATE promos SET name=?, link=?, price_usdt=?, status=?, deadline=?, notes=?, category=?, advertiser_name=?, tags=?, priority=? WHERE id=? AND user_id=?",
         (
             data["name"],
             data.get("link", ""),
@@ -349,6 +357,7 @@ async def update_promo(promo_id: int, request: Request, user=Depends(get_current
             data.get("category", "yokoso"),
             data.get("advertiser_name", ""),
             data.get("tags", ""),
+            data.get("priority", "medium"),
             promo_id,
             telegram_id,
         ),
@@ -372,12 +381,81 @@ async def delete_promo(promo_id: int, user=Depends(get_current_user), db=Depends
 async def update_promo_status(promo_id: int, request: Request, user=Depends(get_current_user), db=Depends(get_db)):
     data = await request.json()
     telegram_id = user.get("id", 0)
+    old_row = await db.execute("SELECT status FROM promos WHERE id = ? AND user_id = ?", (promo_id, telegram_id))
+    old = await old_row.fetchone()
+    old_status = dict(old)["status"] if old else None
+    new_status = data["status"]
     await db.execute(
         "UPDATE promos SET status = ? WHERE id = ? AND user_id = ?",
-        (data["status"], promo_id, telegram_id),
+        (new_status, promo_id, telegram_id),
+    )
+    await db.execute(
+        "INSERT INTO promo_history (promo_id, user_id, old_status, new_status) VALUES (?, ?, ?, ?)",
+        (promo_id, telegram_id, old_status, new_status),
     )
     await db.commit()
     return {"ok": True}
+
+
+@app.patch("/api/promos/{promo_id}/archive")
+async def archive_promo(promo_id: int, request: Request, user=Depends(get_current_user), db=Depends(get_db)):
+    data = await request.json()
+    telegram_id = user.get("id", 0)
+    archived = 1 if data.get("archived", True) else 0
+    await db.execute("UPDATE promos SET archived = ? WHERE id = ? AND user_id = ?", (archived, promo_id, telegram_id))
+    await db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/promos/{promo_id}/history")
+async def promo_history(promo_id: int, user=Depends(get_current_user), db=Depends(get_db)):
+    rows = await db.execute("SELECT * FROM promo_history WHERE promo_id = ? ORDER BY created_at DESC", (promo_id,))
+    return [dict(r) for r in await rows.fetchall()]
+
+
+@app.get("/api/promos/{promo_id}/comments")
+async def list_comments(promo_id: int, user=Depends(get_current_user), db=Depends(get_db)):
+    rows = await db.execute("SELECT * FROM promo_comments WHERE promo_id = ? ORDER BY created_at ASC", (promo_id,))
+    return [dict(r) for r in await rows.fetchall()]
+
+
+@app.post("/api/promos/{promo_id}/comments")
+async def add_comment(promo_id: int, request: Request, user=Depends(get_current_user), db=Depends(get_db)):
+    data = await request.json()
+    telegram_id = user.get("id", 0)
+    await db.execute(
+        "INSERT INTO promo_comments (promo_id, user_id, content) VALUES (?, ?, ?)",
+        (promo_id, telegram_id, data["content"]),
+    )
+    await db.commit()
+    row = await db.execute("SELECT * FROM promo_comments WHERE id = last_insert_rowid()")
+    return dict(await row.fetchone())
+
+
+@app.delete("/api/comments/{comment_id}")
+async def delete_comment(comment_id: int, user=Depends(get_current_user), db=Depends(get_db)):
+    telegram_id = user.get("id", 0)
+    await db.execute("DELETE FROM promo_comments WHERE id = ? AND user_id = ?", (comment_id, telegram_id))
+    await db.commit()
+    return {"ok": True}
+
+
+@app.get("/api/stats")
+async def get_stats(user=Depends(get_current_user), db=Depends(get_db)):
+    telegram_id = user.get("id", 0)
+    total = await db.execute("SELECT COUNT(*) as c FROM promos WHERE user_id = ? AND archived = 0", (telegram_id,))
+    total_count = dict(await total.fetchone())["c"]
+    done = await db.execute("SELECT COUNT(*) as c FROM promos WHERE user_id = ? AND archived = 0 AND status = 'done'", (telegram_id,))
+    done_count = dict(await done.fetchone())["c"]
+    week = await db.execute("SELECT COUNT(*) as c FROM promos WHERE user_id = ? AND status = 'done' AND created_at >= datetime('now', '-7 days')", (telegram_id,))
+    week_count = dict(await week.fetchone())["c"]
+    month = await db.execute("SELECT COUNT(*) as c FROM promos WHERE user_id = ? AND status = 'done' AND created_at >= datetime('now', '-30 days')", (telegram_id,))
+    month_count = dict(await month.fetchone())["c"]
+    archived = await db.execute("SELECT COUNT(*) as c FROM promos WHERE user_id = ? AND archived = 1", (telegram_id,))
+    archived_count = dict(await archived.fetchone())["c"]
+    high = await db.execute("SELECT COUNT(*) as c FROM promos WHERE user_id = ? AND archived = 0 AND priority = 'high'", (telegram_id,))
+    high_count = dict(await high.fetchone())["c"]
+    return {"total": total_count, "done": done_count, "week_done": week_count, "month_done": month_count, "archived": archived_count, "high_priority": high_count}
 
 
 # ── Notes ──
@@ -558,43 +636,57 @@ async def delete_template(template_id: int, user=Depends(get_current_user), db=D
 async def tiktok_sound_info(request: Request):
     data = await request.json()
     url = data.get("url", "")
-    if not url or "tiktok.com" not in url:
+    if not url or "tiktok" not in url:
         raise HTTPException(400, "Invalid TikTok URL")
     try:
-        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
-            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"})
+        async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+            # Follow redirects for short URLs (vm.tiktok.com)
+            resp = await client.get(url, headers=headers)
+            final_url = str(resp.url)
             html = resp.text
             name = ""
             author = ""
-            # Try JSON-LD structured data first
-            music_match = re.search(r'"musicName"\s*:\s*"([^"]+)"', html)
-            if music_match:
-                name = music_match.group(1)
+
+            # Method 1: Parse URL slug — most reliable
+            # Pattern: /music/Track-Name-Artist-Name-1234567890
+            slug_match = re.match(r'.*/music/(.+?)(-\d{10,})(?:\?.*)?$', final_url)
+            if slug_match:
+                raw = slug_match.group(1)
+                if raw.lower() != "original-sound":
+                    slug_name = raw.replace("-", " ")
+                    name = slug_name
+
+            # Method 2: Try JSON data in page
+            if not name or name == "original sound":
+                music_match = re.search(r'"musicName"\s*:\s*"([^"]+)"', html)
+                if music_match and "original" not in music_match.group(1).lower():
+                    name = music_match.group(1)
             author_match = re.search(r'"authorName"\s*:\s*"([^"]+)"', html)
             if author_match:
                 author = author_match.group(1)
-            # Try og:title for music pages
-            if not name:
+
+            # Method 3: Try canonical URL in page
+            if not name or name == "original sound":
+                canon = re.search(r'"canonical"\s*:\s*"[^"]*?/music/(.+?)(-\d{10,})"', html)
+                if canon:
+                    raw2 = canon.group(1).replace("\\u002F", "/").replace("-", " ")
+                    if raw2.lower() != "original sound":
+                        name = raw2
+
+            # Method 4: og:title
+            if not name or name == "original sound":
                 og_match = re.search(r'<meta[^>]*property="og:title"[^>]*content="([^"]+)"', html, re.IGNORECASE)
                 if og_match:
-                    og_title = og_match.group(1).strip()
-                    if "tiktok" not in og_title.lower()[:10]:
-                        name = og_title
-            # Fallback to page title
-            if not name:
-                title_match = re.search(r'<title[^>]*>([^<]+)</title>', html, re.IGNORECASE)
-                title = title_match.group(1).strip() if title_match else ""
-                if " - " in title:
-                    parts = title.split(" - ", 1)
-                    name = parts[0].strip()
-                    if not author:
-                        author = parts[1].split("|")[0].strip() if "|" in parts[1] else parts[1].strip()
-                elif title and "tiktok" not in title.lower()[:10]:
-                    name = title.split("|")[0].strip()
-            # Clean up generic titles
-            if name and ("make your day" in name.lower() or "tiktok" in name.lower()[:10]):
+                    og = og_match.group(1).strip()
+                    if "tiktok" not in og.lower() and "make your day" not in og.lower():
+                        name = og
+
+            # Clean up generic/placeholder names
+            if name and ("make your day" in name.lower() or name.lower().startswith("tiktok")):
                 name = ""
-            return {"name": name, "author": author}
+
+            return {"name": name, "author": author, "url": final_url}
     except Exception as e:
         return {"name": "", "author": "", "error": str(e)}
 

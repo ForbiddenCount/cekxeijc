@@ -112,4 +112,39 @@ async def init_db():
                 FOREIGN KEY (user_id) REFERENCES users(telegram_id)
             )
         """)
+        # Migration: add priority column to promos
+        try:
+            await db.execute("ALTER TABLE promos ADD COLUMN priority TEXT DEFAULT 'medium'")
+        except Exception:
+            pass
+        # Migration: add archived column to promos
+        try:
+            await db.execute("ALTER TABLE promos ADD COLUMN archived INTEGER DEFAULT 0")
+        except Exception:
+            pass
+        # Status change history
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS promo_history (
+                id INTEGER PRIMARY KEY,
+                promo_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                old_status TEXT,
+                new_status TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (promo_id) REFERENCES promos(id),
+                FOREIGN KEY (user_id) REFERENCES users(telegram_id)
+            )
+        """)
+        # Comments on promos
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS promo_comments (
+                id INTEGER PRIMARY KEY,
+                promo_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (promo_id) REFERENCES promos(id),
+                FOREIGN KEY (user_id) REFERENCES users(telegram_id)
+            )
+        """)
         await db.commit()
