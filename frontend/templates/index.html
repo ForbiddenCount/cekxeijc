@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ad Manager</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <canvas id="particleCanvas"></canvas>
+
+    <div id="app">
+        <!-- Navigation -->
+        <nav class="bottom-nav" id="bottomNav">
+            <button class="nav-btn active" data-page="dashboard" onclick="showPage('dashboard')">
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
+                <span class="nav-label">Главная</span>
+            </button>
+            <button class="nav-btn" data-page="promo" onclick="showPage('promo')">
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+                <span class="nav-label">Promo</span>
+            </button>
+            <button class="nav-btn" data-page="converter" onclick="showPage('converter')">
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                <span class="nav-label">Курс</span>
+            </button>
+            <button class="nav-btn" data-page="more" onclick="showPage('more')">
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+                <span class="nav-label">Ещё</span>
+            </button>
+        </nav>
+
+        <!-- Dashboard -->
+        <div class="page active" id="page-dashboard">
+            <div class="header">
+                <h1>Дашборд</h1>
+            </div>
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card accent" onclick="showPage('promo')">
+                    <div class="stat-value" id="statPromos">0</div>
+                    <div class="stat-label">Промо</div>
+                </div>
+                <div class="stat-card accent" onclick="showPage('promo')">
+                    <div class="stat-value" id="statDone">0</div>
+                    <div class="stat-label">Готово</div>
+                </div>
+            </div>
+            <div class="stats-grid" id="statsExtra"></div>
+            <div class="section">
+                <div class="section-header">
+                    <h2>Напоминания</h2>
+                    <button class="btn-icon" onclick="showAddReminder()">+</button>
+                </div>
+                <div id="remindersList" class="list"></div>
+            </div>
+        </div>
+
+        <!-- Promo (single page, all user promos) -->
+        <div class="page" id="page-promo">
+            <div class="header">
+                <h1>Promo</h1>
+                <div style="display:flex;gap:4px;">
+                    <button class="btn-secondary btn-xs" onclick="showTemplates()">Шаблоны</button>
+                    <button class="btn-primary btn-xs" onclick="showAddPromo()">+</button>
+                </div>
+            </div>
+            <div class="filter-bar">
+                <input type="text" id="promoSearch" placeholder="Поиск..." oninput="filterPromos()" class="search-input">
+                <select id="promoFilterStatus" onchange="filterPromos()">
+                    <option value="">Все</option>
+                    <option value="not_ready">Не готово</option>
+                    <option value="in_progress">В процессе</option>
+                    <option value="done">Готово</option>
+                </select>
+                <select id="promoSort" onchange="filterPromos()">
+                    <option value="created">Дата</option>
+                    <option value="status">Статус</option>
+                </select>
+            </div>
+            <div class="filter-bar" style="margin-top:-8px;">
+                <input type="text" id="promoTagFilter" placeholder="Фильтр по тэгу..." oninput="filterPromos()" class="search-input" style="flex:0.5;">
+                <button class="btn-secondary btn-sm" id="bulkSelectBtn" onclick="toggleBulkSelect()" style="white-space:nowrap;">Выбрать</button>
+            </div>
+            <div id="bulkActions" style="display:none;margin-bottom:10px;gap:6px;flex-wrap:wrap;" class="filter-bar">
+                <button class="btn-sm btn-primary" onclick="bulkChangeStatus('done')">Готово</button>
+                <button class="btn-sm btn-secondary" onclick="bulkChangeStatus('in_progress')">В процессе</button>
+                <button class="btn-sm btn-secondary" onclick="bulkChangeStatus('not_ready')">Не готово</button>
+                <span id="bulkCount" style="font-size:12px;color:var(--text-secondary);align-self:center;">0 выбрано</span>
+            </div>
+            <div id="promoList" class="list"></div>
+        </div>
+
+        <!-- Converter -->
+        <div class="page" id="page-converter">
+            <div class="header">
+                <h1>Конвертер валют</h1>
+            </div>
+            <div class="converter-card">
+                <div class="converter-inputs">
+                    <div class="input-group">
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <select id="fromCurrency" onchange="doConvert()" style="width:90px;padding:8px;font-size:13px;">
+                                <option value="USDT" selected>USDT</option>
+                                <option value="BTC">BTC</option>
+                                <option value="ETH">ETH</option>
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
+                                <option value="RUB">RUB</option>
+                                <option value="KZT">KZT</option>
+                                <option value="UZS">UZS</option>
+                                <option value="TRY">TRY</option>
+                                <option value="GBP">GBP</option>
+                                <option value="CNY">CNY</option>
+                                <option value="JPY">JPY</option>
+                                <option value="AED">AED</option>
+                            </select>
+                            <input type="number" id="fromAmount" placeholder="0.00" oninput="doConvert()" style="flex:1;">
+                        </div>
+                    </div>
+                    <div class="swap-icon" onclick="swapCurrencies()" style="cursor:pointer;font-size:24px;text-align:center;padding:8px;">⇆</div>
+                    <div class="input-group">
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <select id="toCurrency" onchange="doConvert()" style="width:90px;padding:8px;font-size:13px;">
+                                <option value="USDT">USDT</option>
+                                <option value="BTC">BTC</option>
+                                <option value="ETH">ETH</option>
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
+                                <option value="RUB" selected>RUB</option>
+                                <option value="KZT">KZT</option>
+                                <option value="UZS">UZS</option>
+                                <option value="TRY">TRY</option>
+                                <option value="GBP">GBP</option>
+                                <option value="CNY">CNY</option>
+                                <option value="JPY">JPY</option>
+                                <option value="AED">AED</option>
+                            </select>
+                            <input type="number" id="toAmount" placeholder="0.00" readonly style="flex:1;opacity:0.8;">
+                        </div>
+                    </div>
+                </div>
+                <div id="rateInfo" style="text-align:center;font-size:11px;color:var(--text-secondary);margin-top:8px;"></div>
+            </div>
+            <!-- Financial summary -->
+            <div class="section" style="margin-top:16px;">
+                <div class="section-header"><h2>Финансы</h2><button class="btn-icon" onclick="showAddExpense()">+</button></div>
+                <div class="stats-grid" id="financeStats"></div>
+                <div id="expensesList" style="margin-top:10px;"></div>
+            </div>
+        </div>
+
+        <!-- More (Profile) -->
+        <div class="page" id="page-more">
+            <!-- Profile Section -->
+            <div class="profile-card" id="profileCard">
+                <div class="profile-avatar" id="profileAvatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg></div>
+                <div class="profile-name" id="profileName">—</div>
+                <div class="profile-username" id="profileUsername">—</div>
+                <div class="profile-stats">
+                    <div class="profile-stat">
+                        <div class="profile-stat-value" id="profilePromoCount">0</div>
+                        <div class="profile-stat-label">Промо</div>
+                    </div>
+                    <div class="profile-stat">
+                        <div class="profile-stat-value" id="profileDoneCount">0</div>
+                        <div class="profile-stat-label">Выполнено</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin inline (hidden for non-admins, shown via JS) -->
+            <div class="section" id="adminInlineSection" style="display:none">
+                <div class="section-header"><h2>Система</h2></div>
+                <div class="stats-grid" id="adminStatsGrid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="adminStatUsers">0</div>
+                        <div class="stat-label">Пользователей</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="adminStatPromos">0</div>
+                        <div class="stat-label">Промо всего</div>
+                    </div>
+                </div>
+                <div id="adminUsersList" class="list"></div>
+            </div>
+        </div>
+
+        <!-- Modals -->
+        <div class="modal" id="modal">
+            <div class="modal-backdrop" onclick="closeModal()"></div>
+            <div class="modal-content" id="modalContent"></div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

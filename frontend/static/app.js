@@ -1,0 +1,1307 @@
+/* global Telegram */
+const tg = window.Telegram?.WebApp;
+let initData = "";
+let currentUser = null;
+let advertisers = [];
+let promos = [];
+let exchangeRate = 92;
+
+// ── Particles (optimized) ──
+
+function initParticles() {
+    const canvas = document.getElementById("particleCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d", { alpha: true });
+    let w, h, particles;
+    const isMobile = window.innerWidth < 500;
+    const density = isMobile ? 10000 : 7000;
+
+    function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+    }
+
+    function createParticles() {
+        particles = [];
+        const count = Math.min(Math.floor((w * h) / density), isMobile ? 80 : 150);
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: Math.random() * w,
+                y: Math.random() * h,
+                r: Math.random() * 4 + 1,
+                dx: (Math.random() - 0.5) * 0.25,
+                dy: (Math.random() - 0.5) * 0.25,
+                alpha: Math.random() * 0.5 + 0.2,
+                pulse: Math.random() * Math.PI * 2,
+                glow: Math.random() * 10 + 4,
+            });
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, w, h);
+        for (const p of particles) {
+            p.x += p.dx;
+            p.y += p.dy;
+            p.pulse += 0.01;
+            if (p.x < 0) p.x = w;
+            if (p.x > w) p.x = 0;
+            if (p.y < 0) p.y = h;
+            if (p.y > h) p.y = 0;
+            const al = Math.max(0, p.alpha + Math.sin(p.pulse) * 0.15);
+            ctx.save();
+            ctx.shadowBlur = p.glow;
+            ctx.shadowColor = `rgba(139,92,246,${al * 0.7})`;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(160,120,255,${al})`;
+            ctx.fill();
+            ctx.restore();
+        }
+        requestAnimationFrame(draw);
+    }
+
+    resize();
+    createParticles();
+    draw();
+    let resizeTimer;
+    window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { resize(); createParticles(); }, 200); });
+}
+
+// ── Init ──
+
+document.addEventListener("DOMContentLoaded", async () => {
+    initParticles();
+    if (tg) {
+        tg.ready();
+        tg.expand();
+        initData = tg.initData || "";
+        tg.setHeaderColor(
+            getComputedStyle(document.documentElement)
+                .getPropertyValue("--tg-theme-bg-color")
+                .trim() || "#000000"
+        );
+    }
+    await auth();
+    showPage("dashboard");
+});
+
+// ── API ──
+
+async function api(path, options = {}) {
+    const headers = {
+        "Content-Type": "application/json",
+        "X-Telegram-Init-Data": initData || JSON.stringify({ id: 1, first_name: "Dev", username: "dev" }),
+    };
+    const resp = await fetch(path, { ...options, headers });
+    if (!resp.ok) {
+        const err = await resp.text();
+        console.error("API error:", resp.status, err);
+        throw new Error(err);
+    }
+    return resp.json();
+}
+
+async function auth() {
+    try {
+        currentUser = await api("/api/auth", { method: "POST" });
+    } catch (e) {
+        console.error("Auth failed:", e);
+    }
+}
+
+// ── Navigation ──
+
+function showPage(page) {
+    document.querySelectorAll(".page").forEach((p) => p.classList.remove("active"));
+    document.querySelectorAll(".nav-btn").forEach((b) => b.classList.remove("active"));
+    document.getElementById("page-" + page)?.classList.add("active");
+    document.querySelector(`.nav-btn[data-page="${page}"]`)?.classList.add("active");
+
+    switch (page) {
+        case "dashboard": loadDashboard(); break;
+        case "promo": loadPromos(); break;
+        case "converter": loadConverter(); break;
+        case "more": loadMore(); break;
+    }
+}
+
+async function loadMore() {
+    loadProfile();
+}
+
+function updateNavBadges(profile) {
+    const active = profile.promos_count - profile.done_count;
+    setBadge("promo", active);
+}
+
+function setBadge(page, count) {
+    const btn = document.querySelector(`.nav-btn[data-page="${page}"]`);
+    if (!btn) return;
+    let badge = btn.querySelector(".nav-badge");
+    if (count > 0) {
+        if (!badge) {
+            badge = document.createElement("span");
+            badge.className = "nav-badge";
+            btn.appendChild(badge);
+        }
+        badge.textContent = count;
+    } else if (badge) {
+        badge.remove();
+    }
+}
+
+function copyLink(link) {
+    navigator.clipboard.writeText(link).then(() => {
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    });
+}
+
+// ── Dashboard ──
+
+async function loadDashboard() {
+    try {
+        const profile = await api("/api/profile");
+        document.getElementById("statPromos").textContent = profile.promos_count;
+        document.getElementById("statDone").textContent = profile.done_count;
+        updateNavBadges(profile);
+    } catch (e) {
+        console.error(e);
+    }
+
+    try {
+        const stats = await api("/api/stats");
+        const statsExtra = document.getElementById("statsExtra");
+        if (statsExtra) {
+            statsExtra.innerHTML = `
+                <div class="stat-card" style="border-color:var(--accent);">
+                    <div class="stat-value">${stats.week_done}</div>
+                    <div class="stat-label">За неделю</div>
+                </div>
+                <div class="stat-card" style="border-color:var(--accent);">
+                    <div class="stat-value">${stats.month_done}</div>
+                    <div class="stat-label">За месяц</div>
+                </div>
+                <div class="stat-card" onclick="showArchive()" style="cursor:pointer;">
+                    <div class="stat-value">${stats.archived}</div>
+                    <div class="stat-label">Архив</div>
+                </div>
+                ${stats.high_priority ? `<div class="stat-card" style="border-color:#FF453A;">
+                    <div class="stat-value" style="color:#FF453A;">${stats.high_priority}</div>
+                    <div class="stat-label">Срочных</div>
+                </div>` : ""}
+                ${stats.income_month ? `<div class="stat-card" style="border-color:#34C759;">
+                    <div class="stat-value" style="color:#34C759;">$${stats.income_month}</div>
+                    <div class="stat-label">Доход/мес</div>
+                </div>` : ""}
+                ${stats.pending_payment ? `<div class="stat-card" style="border-color:#FFD60A;">
+                    <div class="stat-value" style="color:#FFD60A;">$${stats.pending_payment}</div>
+                    <div class="stat-label">Ожидает</div>
+                </div>` : ""}
+            `;
+        }
+    } catch (e) {
+        console.error(e);
+    }
+
+    try {
+        const reminders = await api("/api/reminders");
+        const container = document.getElementById("remindersList");
+        if (reminders.length === 0) {
+            container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><div class="empty-text">Нет напоминаний</div></div>';
+        } else {
+            container.innerHTML = reminders.map((r) => `
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">${esc(r.message || r.promo_name || "Напоминание")}</span>
+                        <div style="display:flex;gap:4px;">
+                            <button class="btn-icon btn-sm" onclick="event.stopPropagation(); showAddReminder(${r.id}, ${esc(JSON.stringify({remind_at:r.remind_at,message:r.message,promo_id:r.promo_id}))})" style="width:24px;height:24px;font-size:12px;">✎</button>
+                            <button class="btn-icon btn-sm" onclick="event.stopPropagation(); deleteReminder(${r.id})" style="width:24px;height:24px;font-size:12px;">✕</button>
+                        </div>
+                    </div>
+                    <div class="card-meta">
+                        <span>${formatDate(r.remind_at)}</span>
+                        ${r.promo_name ? `<span>${esc(r.promo_name)}</span>` : ""}
+                    </div>
+                </div>`).join("");
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+// ── Advertisers ──
+
+async function loadAdvertisers() {
+    try {
+        advertisers = await api("/api/advertisers");
+        const container = document.getElementById("advertisersList");
+        if (advertisers.length === 0) {
+            container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg><div class="empty-text">Нет рекламодателей.<br>Нажмите + Добавить</div></div>';
+        } else {
+            container.innerHTML = advertisers.map((a) => `
+                <div class="card" onclick="showAdvertiserDetail(${a.id})">
+                    <div class="card-header">
+                        <span class="card-title">${esc(a.name)}</span>
+                    </div>
+                    ${a.username ? `<div class="card-subtitle">@${esc(a.username)}</div>` : ""}
+                    ${a.link ? `<div class="card-meta"><span>${esc(a.link)}</span></div>` : ""}
+                    ${a.notes ? `<div class="card-meta"><span>${esc(a.notes.substring(0, 60))}${a.notes.length > 60 ? "..." : ""}</span></div>` : ""}
+                </div>`).join("");
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function showAddAdvertiser(existing = null) {
+    const isEdit = !!existing;
+    openModal(`
+        <div class="modal-title">${isEdit ? "Редактировать" : "Новый рекламодатель"}</div>
+        <div class="input-group">
+            <label>Имя / Название</label>
+            <input type="text" id="advName" value="${esc(existing?.name || "")}" placeholder="Название компании или имя">
+        </div>
+        <div class="input-group">
+            <label>Username (Telegram)</label>
+            <input type="text" id="advUsername" value="${esc(existing?.username || "")}" placeholder="@username">
+        </div>
+        <div class="input-group">
+            <label>Ссылка</label>
+            <input type="url" id="advLink" value="${esc(existing?.link || "")}" placeholder="https://...">
+        </div>
+        <div class="input-group">
+            <label>Заметки</label>
+            <textarea id="advNotes" placeholder="Дополнительная информация...">${esc(existing?.notes || "")}</textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal()">Отмена</button>
+            ${isEdit ? `<button class="btn-danger" onclick="deleteAdvertiser(${existing.id})">Удалить</button>` : ""}
+            <button class="btn-primary" onclick="saveAdvertiser(${existing?.id || "null"})">${isEdit ? "Сохранить" : "Добавить"}</button>
+        </div>
+    `);
+}
+
+async function saveAdvertiser(id) {
+    const data = {
+        name: document.getElementById("advName").value.trim(),
+        username: document.getElementById("advUsername").value.trim().replace(/^@/, ""),
+        link: document.getElementById("advLink").value.trim(),
+        notes: document.getElementById("advNotes").value.trim(),
+    };
+    if (!data.name) {
+        tg?.showAlert?.("Введите имя рекламодателя") || alert("Введите имя рекламодателя");
+        return;
+    }
+    try {
+        if (id) {
+            await api(`/api/advertisers/${id}`, { method: "PUT", body: JSON.stringify(data) });
+        } else {
+            await api("/api/advertisers", { method: "POST", body: JSON.stringify(data) });
+        }
+        closeModal();
+        loadAdvertisers();
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    } catch (e) {
+        tg?.showAlert?.("Ошибка сохранения") || alert("Ошибка");
+    }
+}
+
+async function deleteAdvertiser(id) {
+    if (!confirm("Удалить рекламодателя и все его промо?")) return;
+    try {
+        await api(`/api/advertisers/${id}`, { method: "DELETE" });
+        closeModal();
+        loadAdvertisers();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function showAdvertiserDetail(id) {
+    const adv = advertisers.find((a) => a.id === id);
+    if (adv) showAddAdvertiser(adv);
+}
+
+// ── Promos ──
+
+let allPromos = [];
+
+async function loadPromos() {
+    try {
+        allPromos = await api("/api/promos");
+        renderPromos();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function filterPromos() {
+    renderPromos();
+}
+
+function renderPromos() {
+    const statusFilter = document.getElementById("promoFilterStatus")?.value;
+    const searchQuery = (document.getElementById("promoSearch")?.value || "").toLowerCase().trim();
+    const tagFilter = (document.getElementById("promoTagFilter")?.value || "").toLowerCase().trim();
+    const sortBy = document.getElementById("promoSort")?.value || "created";
+    let filtered = [...allPromos];
+    if (statusFilter) filtered = filtered.filter((p) => p.status === statusFilter);
+    if (searchQuery) filtered = filtered.filter((p) => p.name.toLowerCase().includes(searchQuery) || (p.advertiser_name || "").toLowerCase().includes(searchQuery));
+    if (tagFilter) filtered = filtered.filter((p) => (p.tags || "").toLowerCase().includes(tagFilter));
+    const statusOrder = { not_ready: 0, in_progress: 1, done: 2 };
+    if (sortBy === "created") {
+        filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    } else if (sortBy === "status") {
+        filtered.sort((a, b) => (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0));
+    }
+    promos = allPromos;
+
+    const container = document.getElementById("promoList");
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><div class="empty-text">Нет промо.<br>Нажмите + Добавить</div></div>';
+        return;
+    }
+
+    container.innerHTML = filtered.map((p) => {
+        const tagsHtml = p.tags ? `<div class="card-meta">${p.tags.split(",").map(t => `<span class="tag-badge">${esc(t.trim())}</span>`).join("")}</div>` : "";
+        const checkboxHtml = bulkMode ? `<input type="checkbox" class="bulk-check" data-id="${p.id}" onclick="event.stopPropagation(); updateBulkCount()" style="width:18px;height:18px;margin-right:8px;accent-color:var(--accent);">` : "";
+        const priorityDot = p.priority === "high" ? '<span class="priority-dot high"></span>' : p.priority === "low" ? '<span class="priority-dot low"></span>' : "";
+        return `
+            <div class="card" onclick="${bulkMode ? `toggleBulkCheck(${p.id})` : `showPromoDetail(${p.id})`}">
+                <div class="card-header">
+                    <div style="display:flex;align-items:center;">
+                        ${checkboxHtml}
+                        ${priorityDot}
+                        <span class="card-title">${esc(p.name)}</span>
+                    </div>
+                    <select class="status-select ${p.status}" onchange="event.stopPropagation(); changePromoStatus(${p.id}, this.value)" onclick="event.stopPropagation()">
+                        <option value="not_ready" ${p.status === "not_ready" ? "selected" : ""}>Не готово</option>
+                        <option value="in_progress" ${p.status === "in_progress" ? "selected" : ""}>В процессе</option>
+                        <option value="done" ${p.status === "done" ? "selected" : ""}>Готово</option>
+                    </select>
+                </div>
+                ${p.advertiser_name ? `<div class="card-subtitle">${esc(p.advertiser_name)}</div>` : ""}
+                <div class="card-meta">
+                    ${p.link ? `<span class="copy-link" onclick="event.stopPropagation(); copyLink('${esc(p.link)}')">📋 Копировать</span>` : ""}
+                    ${p.price_usdt ? `<span class="price-usdt">$${p.price_usdt} USDT</span>` : ""}
+                    ${p.price_usdt ? `<span class="payment-badge payment-${p.payment_status || 'pending'}">${paymentLabel(p.payment_status)}</span>` : ""}
+                </div>
+                ${tagsHtml}
+                ${p.notes ? `<div class="card-meta"><span>${esc(p.notes.substring(0, 80))}${p.notes.length > 80 ? "..." : ""}</span></div>` : ""}
+            </div>`;
+    }).join("");
+}
+
+function showAddPromo(existing = null) {
+    if (typeof existing === "string") existing = null;
+    const isEdit = !!existing;
+    openModal(`
+        <div class="modal-title">${isEdit ? "Редактировать промо" : "Новое промо"}</div>
+        <div class="input-group">
+            <label>Ссылка (TikTok — автозаполнение)</label>
+            <div style="display:flex;gap:6px;">
+                <input type="url" id="promoLink" value="${esc(existing?.link || "")}" placeholder="https://tiktok.com/music/..." style="flex:1;">
+                <button class="btn-primary btn-sm" onclick="fetchTikTokInfo()" style="width:auto;padding:10px 14px;">TT</button>
+            </div>
+            <div id="tiktokStatus" style="font-size:11px;color:var(--text-secondary);margin-top:4px;"></div>
+        </div>
+        <div class="input-group">
+            <label>Рекламодатель</label>
+            <div style="display:flex;gap:6px;">
+                <input type="text" id="promoAdvertiser" value="${esc(existing?.advertiser_name || "")}" placeholder="@username TikTok" style="flex:1;">
+                <button class="btn-primary btn-sm" onclick="lookupTikTokUser()" style="width:auto;padding:10px 12px;font-size:11px;">Найти</button>
+            </div>
+            <div id="tiktokUserStatus" style="font-size:11px;color:var(--text-secondary);margin-top:4px;"></div>
+        </div>
+        <div class="input-group">
+            <label>Название промо</label>
+            <input type="text" id="promoName" value="${esc(existing?.name || "")}" placeholder="Название кампании">
+        </div>
+        <div class="input-group">
+            <label>Цена (USDT)</label>
+            <input type="number" id="promoPrice" value="${existing?.price_usdt || ""}" placeholder="0.00" step="0.01" oninput="updatePromoRubPrice()">
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:4px;" id="promoRubEquiv"></div>
+        </div>
+        <div class="input-group">
+            <label>Статус</label>
+            <select id="promoStatus">
+                <option value="not_ready" ${existing?.status === "not_ready" ? "selected" : ""}>Не готово</option>
+                <option value="in_progress" ${existing?.status === "in_progress" ? "selected" : ""}>В процессе</option>
+                <option value="done" ${existing?.status === "done" ? "selected" : ""}>Готово</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>Статус оплаты</label>
+            <select id="promoPaymentStatus">
+                <option value="pending" ${!existing || existing?.payment_status === "pending" ? "selected" : ""}>Ожидается</option>
+                <option value="partial" ${existing?.payment_status === "partial" ? "selected" : ""}>Частично оплачен</option>
+                <option value="paid" ${existing?.payment_status === "paid" ? "selected" : ""}>Выплачен</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>Тэги (через запятую)</label>
+            <input type="text" id="promoTags" value="${esc(existing?.tags || "")}" placeholder="music, tiktok, promo">
+        </div>
+        <div class="input-group">
+            <label>Приоритет</label>
+            <select id="promoPriority">
+                <option value="low" ${existing?.priority === "low" ? "selected" : ""}>Низкий</option>
+                <option value="medium" ${!existing || existing?.priority === "medium" ? "selected" : ""}>Средний</option>
+                <option value="high" ${existing?.priority === "high" ? "selected" : ""}>Высокий</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>Заметки</label>
+            <textarea id="promoNotes" placeholder="Дополнительная информация...">${esc(existing?.notes || "")}</textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal()">Отмена</button>
+            ${isEdit ? `<button class="btn-danger" onclick="deletePromo(${existing.id})">Удалить</button>` : ""}
+            <button class="btn-primary" onclick="savePromo(${existing?.id || "null"})">${isEdit ? "Сохранить" : "Добавить"}</button>
+        </div>
+    `);
+    updatePromoRubPrice();
+}
+
+async function fetchTikTokInfo() {
+    const linkInput = document.getElementById("promoLink");
+    const status = document.getElementById("tiktokStatus");
+    let url = linkInput?.value.trim();
+    if (!url || !url.includes("tiktok.com")) {
+        try {
+            const clipText = await navigator.clipboard.readText();
+            if (clipText && clipText.includes("tiktok.com")) {
+                url = clipText.trim();
+                if (linkInput) linkInput.value = url;
+            }
+        } catch (e) {}
+    }
+    if (!url || !url.includes("tiktok.com")) {
+        if (status) status.textContent = "Вставьте ссылку TikTok в поле или скопируйте в буфер";
+        return;
+    }
+    if (linkInput && !linkInput.value) linkInput.value = url;
+    if (status) status.textContent = "Загрузка...";
+    try {
+        const data = await api("/api/tiktok-sound", { method: "POST", body: JSON.stringify({ url }) });
+        if (data.name) {
+            const nameInput = document.getElementById("promoName");
+            if (nameInput) nameInput.value = data.name;
+        }
+        if (status) status.textContent = data.name ? `Трек: ${data.name}` : "Название не найдено";
+    } catch (e) {
+        if (status) status.textContent = "Ошибка загрузки";
+    }
+}
+
+async function lookupTikTokUser() {
+    const input = document.getElementById("promoAdvertiser");
+    const status = document.getElementById("tiktokUserStatus");
+    const username = input?.value.trim();
+    if (!username) {
+        if (status) status.textContent = "Введите @username";
+        return;
+    }
+    if (status) status.innerHTML = '<span style="color:var(--accent);">Поиск...</span>';
+    try {
+        const results = await api("/api/tiktok-user", { method: "POST", body: JSON.stringify({ username }) });
+        if (!results.length) {
+            if (status) status.textContent = "Не найдено";
+            return;
+        }
+        status.innerHTML = results.map(u => `
+            <div class="tt-user-result" onclick="selectTikTokUser('${esc(u.display_name)}', '${esc(u.username)}')">
+                <img class="tt-user-avatar" src="${u.avatar || ''}" onerror="this.style.display='none'" alt="">
+                <div class="tt-user-info">
+                    <div class="tt-user-name">${esc(u.display_name)}</div>
+                    <div class="tt-user-handle">@${esc(u.username)}${u.followers ? ' · ' + u.followers : ''}</div>
+                </div>
+            </div>
+        `).join("");
+    } catch (e) {
+        if (status) status.textContent = "Ошибка поиска";
+    }
+}
+
+function selectTikTokUser(name, username) {
+    const input = document.getElementById("promoAdvertiser");
+    if (input) input.value = `${name} (@${username})`;
+    const status = document.getElementById("tiktokUserStatus");
+    if (status) status.innerHTML = `<span style="color:var(--accent);">Выбран: @${username}</span>`;
+}
+
+async function updatePromoRubPrice() {
+    const priceInput = document.getElementById("promoPrice");
+    const equiv = document.getElementById("promoRubEquiv");
+    if (!priceInput || !equiv) return;
+    const val = parseFloat(priceInput.value);
+    if (val && val > 0) {
+        try {
+            const data = await api(`/api/convert?amount=${val}&direction=usdt_to_rub`);
+            equiv.textContent = `≈ ${data.result} RUB (курс: ${data.rate})`;
+            exchangeRate = data.rate;
+        } catch (e) {
+            equiv.textContent = `≈ ${(val * exchangeRate).toFixed(2)} RUB`;
+        }
+    } else {
+        equiv.textContent = "";
+    }
+}
+
+async function savePromo(id) {
+    const data = {
+        advertiser_name: document.getElementById("promoAdvertiser").value.trim(),
+        name: document.getElementById("promoName").value.trim(),
+        link: document.getElementById("promoLink").value.trim(),
+        price_usdt: parseFloat(document.getElementById("promoPrice").value) || null,
+        status: document.getElementById("promoStatus").value,
+        payment_status: document.getElementById("promoPaymentStatus")?.value || "pending",
+        priority: document.getElementById("promoPriority")?.value || "medium",
+        notes: document.getElementById("promoNotes").value.trim(),
+        tags: document.getElementById("promoTags")?.value.trim() || "",
+    };
+    if (!data.name) {
+        tg?.showAlert?.("Введите название промо") || alert("Введите название промо");
+        return;
+    }
+    try {
+        if (id) {
+            await api(`/api/promos/${id}`, { method: "PUT", body: JSON.stringify(data) });
+        } else {
+            await api("/api/promos", { method: "POST", body: JSON.stringify(data) });
+        }
+        closeModal();
+        loadPromos();
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    } catch (e) {
+        tg?.showAlert?.("Ошибка сохранения") || alert("Ошибка");
+    }
+}
+
+async function showPromoDetail(id) {
+    const promo = promos.find((p) => p.id === id);
+    if (!promo) return;
+
+    let notesHtml = "";
+    try {
+        const notes = await api(`/api/notes?promo_id=${id}`);
+        notesHtml = notes.map((n) => `
+            <div class="note-item">
+                <div class="note-content" id="note-text-${n.id}">${esc(n.content)}</div>
+                <div class="note-date" id="note-date-${n.id}" data-raw="${esc(n.created_at || '')}">${formatDate(n.created_at)}</div>
+                <div class="note-actions">
+                    <button class="note-action-btn" onclick="editNote(${n.id}, ${id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                    <button class="note-action-btn" onclick="deleteNote(${n.id}, ${id})">✕</button>
+                </div>
+            </div>`).join("");
+    } catch (e) {
+        console.error(e);
+    }
+
+    let commentsHtml = "";
+    try {
+        const comments = await api(`/api/promos/${id}/comments`);
+        commentsHtml = comments.map(c => `
+            <div class="note-item">
+                <div class="note-content">${esc(c.content)}</div>
+                <div class="note-date">${formatDate(c.created_at)}</div>
+                <div class="note-actions"><button class="note-action-btn" onclick="deleteComment(${c.id}, ${id})">✕</button></div>
+            </div>`).join("");
+    } catch (e) {}
+
+    let historyHtml = "";
+    try {
+        const history = await api(`/api/promos/${id}/history`);
+        historyHtml = history.slice(0, 5).map(h => `
+            <div style="font-size:11px;color:var(--text-secondary);padding:4px 0;border-bottom:1px solid var(--border);">
+                ${statusLabel(h.old_status)} → ${statusLabel(h.new_status)} <span style="float:right;">${formatDate(h.created_at)}</span>
+            </div>`).join("");
+    } catch (e) {}
+
+    const priorityLabel = {low: "Низкий", medium: "Средний", high: "Высокий"};
+    const priorityColor = {low: "var(--text-secondary)", medium: "var(--accent)", high: "#FF453A"};
+
+    openModal(`
+        <div class="modal-title">${esc(promo.name)}</div>
+        <div style="margin-bottom:16px;">
+            <div class="card-meta" style="margin-bottom:8px;">
+                <span>${esc(promo.advertiser_name || "—")}</span>
+                <span class="status status-${promo.status}">${statusLabel(promo.status)}</span>
+                <span style="color:${priorityColor[promo.priority] || 'var(--text-secondary)'};font-size:11px;">${priorityLabel[promo.priority] || "Средний"}</span>
+            </div>
+            ${promo.link ? `<div class="card-meta" style="margin-bottom:8px;"><a href="${esc(promo.link)}" target="_blank" style="color:var(--link)">${esc(promo.link)}</a></div>` : ""}
+            ${promo.price_usdt ? `<div class="card-meta"><span class="price-usdt">$${promo.price_usdt} USDT</span><span class="price-rub">≈ ${(promo.price_usdt * exchangeRate).toFixed(2)} RUB</span></div>` : ""}
+            ${promo.price_usdt ? `
+            <div style="margin-top:8px;display:flex;gap:6px;align-items:center;">
+                <span style="font-size:12px;color:var(--text-secondary);">Оплата:</span>
+                <select class="status-select payment-${promo.payment_status || 'pending'}" onchange="updatePaymentStatus(${promo.id}, this.value)" style="font-size:12px;padding:4px 8px;">
+                    <option value="pending" ${promo.payment_status === "pending" || !promo.payment_status ? "selected" : ""}>Ожидается</option>
+                    <option value="partial" ${promo.payment_status === "partial" ? "selected" : ""}>Частично оплачен</option>
+                    <option value="paid" ${promo.payment_status === "paid" ? "selected" : ""}>Выплачен</option>
+                </select>
+                <button class="btn-secondary btn-sm" onclick="generateInvoice(${promo.id})" style="font-size:11px;padding:4px 8px;">Инвойс</button>
+            </div>` : ""}
+        </div>
+        
+        <div class="section">
+            <div class="section-header"><h2>Заметки</h2></div>
+            <div id="promoNotesContainer">${notesHtml || '<div class="empty-state"><div class="empty-text">Нет заметок</div></div>'}</div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+                <input type="text" id="newNoteInput" placeholder="Добавить заметку..." style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:10px;border-radius:var(--radius-sm);font-size:14px;">
+                <button class="btn-primary btn-sm" onclick="addNoteToPromo(${id})">+</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-header"><h2>Комментарии</h2></div>
+            <div id="promoCommentsContainer">${commentsHtml || '<div style="font-size:12px;color:var(--text-secondary);">Нет комментариев</div>'}</div>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+                <input type="text" id="newCommentInput" placeholder="Написать комментарий..." style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:10px;border-radius:var(--radius-sm);font-size:14px;">
+                <button class="btn-primary btn-sm" onclick="addComment(${id})">+</button>
+            </div>
+        </div>
+
+        ${historyHtml ? `<div class="section"><div class="section-header"><h2>История</h2></div>${historyHtml}</div>` : ""}
+
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="archivePromo(${id})">В архив</button>
+            <button class="btn-secondary" onclick="closeModal()">Закрыть</button>
+            <button class="btn-primary" onclick="closeModal(); showAddPromo(${JSON.stringify(promo).replace(/"/g, '&quot;')})">Редактировать</button>
+        </div>
+    `);
+}
+
+async function addComment(promoId) {
+    const input = document.getElementById("newCommentInput");
+    if (!input?.value.trim()) return;
+    await api(`/api/promos/${promoId}/comments`, { method: "POST", body: JSON.stringify({ content: input.value.trim() }) });
+    showPromoDetail(promoId);
+}
+
+async function deleteComment(commentId, promoId) {
+    await api(`/api/comments/${commentId}`, { method: "DELETE" });
+    showPromoDetail(promoId);
+}
+
+async function updatePaymentStatus(promoId, status) {
+    try {
+        await api(`/api/promos/${promoId}/payment`, { method: "PATCH", body: JSON.stringify({ payment_status: status }) });
+        const p = promos.find(p => p.id === promoId);
+        if (p) p.payment_status = status;
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    } catch (e) { console.error(e); }
+}
+
+async function generateInvoice(promoId) {
+    try {
+        const resp = await fetch(`/api/promos/${promoId}/invoice`, { headers: { "X-Telegram-Init-Data": initData } });
+        const text = await resp.text();
+        openModal(`<div class="modal-title">Инвойс</div><pre style="background:rgba(0,0,0,0.3);padding:12px;border-radius:8px;font-size:12px;white-space:pre-wrap;color:var(--text);overflow-x:auto;">${esc(text)}</pre><div class="modal-actions"><button class="btn-primary" onclick="copyInvoice(this)" data-text="${esc(text)}">Копировать</button><button class="btn-secondary" onclick="closeModal()">Закрыть</button></div>`);
+    } catch (e) { console.error(e); }
+}
+
+function copyInvoice(btn) {
+    const text = btn.dataset.text;
+    navigator.clipboard?.writeText(text).then(() => {
+        btn.textContent = "Скопировано!";
+        setTimeout(() => btn.textContent = "Копировать", 1500);
+    });
+}
+
+async function archivePromo(promoId) {
+    await api(`/api/promos/${promoId}/archive`, { method: "PATCH", body: JSON.stringify({ archived: true }) });
+    closeModal();
+    loadPromos();
+    loadDashboard();
+    if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+}
+
+async function unarchivePromo(promoId) {
+    await api(`/api/promos/${promoId}/archive`, { method: "PATCH", body: JSON.stringify({ archived: false }) });
+    showArchive();
+    loadPromos();
+    loadDashboard();
+}
+
+async function showArchive() {
+    try {
+        const archived = await api("/api/promos/archived");
+        let html = archived.map(p => `
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">${esc(p.name)}</span>
+                    <button class="btn-secondary btn-xs" onclick="unarchivePromo(${p.id})">Восстановить</button>
+                </div>
+                ${p.advertiser_name ? `<div class="card-subtitle">${esc(p.advertiser_name)}</div>` : ""}
+                <div class="card-meta"><span class="status status-${p.status}">${statusLabel(p.status)}</span></div>
+            </div>`).join("");
+        if (!html) html = '<div class="empty-state"><div class="empty-text">Архив пуст</div></div>';
+        openModal(`<div class="modal-title">Архив</div>${html}<div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Закрыть</button></div>`);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function addNoteToPromo(promoId) {
+    const input = document.getElementById("newNoteInput");
+    if (!input?.value.trim()) return;
+    try {
+        await api("/api/notes", {
+            method: "POST",
+            body: JSON.stringify({ promo_id: promoId, content: input.value.trim() }),
+        });
+        showPromoDetail(promoId);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function editNote(noteId, promoId) {
+    const el = document.getElementById(`note-text-${noteId}`);
+    const dateEl = document.getElementById(`note-date-${noteId}`);
+    if (!el) return;
+    const oldContent = el.textContent.trim();
+    const rawDate = dateEl?.dataset?.raw || "";
+    const dateVal = rawDate ? rawDate.replace(" ", "T").substring(0, 16) : "";
+    const noteItem = el.closest(".note-item");
+    if (!noteItem) return;
+    noteItem.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:8px;">
+            <input type="text" id="edit-note-${noteId}" value="${esc(oldContent)}" style="background:var(--bg);color:var(--text);border:1px solid var(--accent);padding:8px;border-radius:var(--radius-sm);font-size:13px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+                <input type="datetime-local" id="edit-note-date-${noteId}" value="${dateVal}" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:8px;border-radius:var(--radius-sm);font-size:12px;">
+                <button class="btn-primary btn-sm" onclick="saveNote(${noteId}, ${promoId})">OK</button>
+            </div>
+        </div>`;
+    document.getElementById(`edit-note-${noteId}`)?.focus();
+}
+
+async function saveNote(noteId, promoId) {
+    const input = document.getElementById(`edit-note-${noteId}`);
+    const dateInput = document.getElementById(`edit-note-date-${noteId}`);
+    if (!input?.value.trim()) return;
+    const body = { content: input.value.trim() };
+    if (dateInput?.value) body.created_at = dateInput.value.replace("T", " ");
+    try {
+        await api(`/api/notes/${noteId}`, { method: "PUT", body: JSON.stringify(body) });
+        if (promoId) showPromoDetail(promoId);
+        else loadProfile();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function deleteNote(noteId, promoId) {
+    try {
+        await api(`/api/notes/${noteId}`, { method: "DELETE" });
+        if (promoId) showPromoDetail(promoId);
+        else loadProfile();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function changePromoStatus(id, status) {
+    try {
+        await api(`/api/promos/${id}/status`, { method: "PATCH", body: JSON.stringify({ status }) });
+        if (tg?.HapticFeedback) tg.HapticFeedback.impactOccurred("light");
+        await loadPromos();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function deletePromo(id) {
+    if (!confirm("Удалить промо?")) return;
+    try {
+        await api(`/api/promos/${id}`, { method: "DELETE" });
+        closeModal();
+        loadPromos();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+// ── Bulk select ──
+
+let bulkMode = false;
+
+function toggleBulkSelect() {
+    bulkMode = !bulkMode;
+    document.getElementById("bulkActions").style.display = bulkMode ? "flex" : "none";
+    document.getElementById("bulkSelectBtn").textContent = bulkMode ? "Отмена" : "Выбрать";
+    renderPromos();
+}
+
+function toggleBulkCheck(id) {
+    const cb = document.querySelector(`.bulk-check[data-id="${id}"]`);
+    if (cb) cb.checked = !cb.checked;
+    updateBulkCount();
+}
+
+function updateBulkCount() {
+    const checked = document.querySelectorAll(".bulk-check:checked");
+    const el = document.getElementById("bulkCount");
+    if (el) el.textContent = `${checked.length} выбрано`;
+}
+
+async function bulkChangeStatus(status) {
+    const checked = document.querySelectorAll(".bulk-check:checked");
+    const ids = Array.from(checked).map(cb => parseInt(cb.dataset.id));
+    if (!ids.length) return;
+    try {
+        await api("/api/promos/bulk-status", { method: "PATCH", body: JSON.stringify({ ids, status }) });
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+        bulkMode = false;
+        document.getElementById("bulkActions").style.display = "none";
+        document.getElementById("bulkSelectBtn").textContent = "Выбрать";
+        loadPromos();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+
+// ── Export ──
+
+async function exportPromos() {
+    try {
+        const resp = await fetch("/api/promos/export", {
+            headers: { "X-Telegram-Init-Data": initData || JSON.stringify({ id: 1, first_name: "Dev" }) }
+        });
+        const text = await resp.text();
+        if (navigator.clipboard) {
+            await navigator.clipboard.writeText(text);
+            if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+            tg?.showAlert?.("Скопировано в буфер обмена!") || alert("Скопировано!");
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+
+// ── Templates ──
+
+async function showTemplates() {
+    try {
+        const templates = await api("/api/templates");
+        let html = '<div class="modal-title">Шаблоны</div>';
+        if (templates.length === 0) {
+            html += '<div class="empty-state"><div class="empty-text">Нет шаблонов</div></div>';
+        } else {
+            html += templates.map(t => `
+                <div class="card" style="cursor:pointer;" onclick="closeModal(); useTemplate(${JSON.stringify(t).replace(/"/g, '&quot;')})">
+                    <div class="card-header">
+                        <span class="card-title">${esc(t.name)}</span>
+                        <button class="note-action-btn" onclick="event.stopPropagation(); deleteTemplate(${t.id})" style="color:#FF453A;">✕</button>
+                    </div>
+                    ${t.advertiser_name ? `<div class="card-subtitle">${esc(t.advertiser_name)}</div>` : ""}
+                    ${t.tags ? `<div class="card-meta">${t.tags.split(",").map(tg => `<span class="tag-badge">${esc(tg.trim())}</span>`).join("")}</div>` : ""}
+                </div>
+            `).join("");
+        }
+        html += '<div class="modal-actions"><button class="btn-secondary" onclick="closeModal()">Закрыть</button><button class="btn-primary" onclick="closeModal(); saveAsTemplate()">Сохранить текущее как шаблон</button></div>';
+        openModal(html);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function useTemplate(t) {
+    showAddPromo({
+        name: t.name,
+        link: t.link || "",
+        price_usdt: t.price_usdt,
+        advertiser_name: t.advertiser_name || "",
+        tags: t.tags || "",
+        notes: t.notes || "",
+        status: "not_ready",
+    });
+}
+
+async function saveAsTemplate() {
+    openModal(`
+        <div class="modal-title">Новый шаблон</div>
+        <div class="input-group"><label>Название</label><input type="text" id="tplName" placeholder="Название шаблона"></div>
+        <div class="input-group"><label>Рекламодатель</label><input type="text" id="tplAdv" placeholder="(необязательно)"></div>
+        <div class="input-group"><label>Ссылка</label><input type="url" id="tplLink" placeholder="https://..."></div>
+        <div class="input-group"><label>Цена USDT</label><input type="number" id="tplPrice" step="0.01"></div>
+        <div class="input-group"><label>Тэги</label><input type="text" id="tplTags" placeholder="через запятую"></div>
+        <div class="input-group"><label>Заметки</label><textarea id="tplNotes"></textarea></div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal()">Отмена</button>
+            <button class="btn-primary" onclick="doSaveTemplate()">Сохранить</button>
+        </div>
+    `);
+}
+
+async function doSaveTemplate() {
+    const name = document.getElementById("tplName")?.value.trim();
+    if (!name) { alert("Введите название"); return; }
+    try {
+        await api("/api/templates", { method: "POST", body: JSON.stringify({
+            name,
+            advertiser_name: document.getElementById("tplAdv")?.value.trim() || "",
+            link: document.getElementById("tplLink")?.value.trim() || "",
+            price_usdt: parseFloat(document.getElementById("tplPrice")?.value) || null,
+            tags: document.getElementById("tplTags")?.value.trim() || "",
+            notes: document.getElementById("tplNotes")?.value.trim() || "",
+        })});
+        closeModal();
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function deleteTemplate(id) {
+    try {
+        await api(`/api/templates/${id}`, { method: "DELETE" });
+        showTemplates();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+
+// ── Converter (Multi-currency) ──
+
+let allRates = {};
+
+async function loadConverter() {
+    try {
+        const data = await api("/api/exchange-rate");
+        exchangeRate = data.usdt_rub;
+    } catch (e) {}
+    try {
+        allRates = await api("/api/rates");
+    } catch (e) {}
+    doConvert();
+    loadFinanceStats();
+}
+
+async function doConvert() {
+    const fromCur = document.getElementById("fromCurrency")?.value || "USDT";
+    const toCur = document.getElementById("toCurrency")?.value || "RUB";
+    const amount = parseFloat(document.getElementById("fromAmount")?.value) || 0;
+    const info = document.getElementById("rateInfo");
+    if (!amount) {
+        document.getElementById("toAmount").value = "";
+        if (info) info.textContent = "";
+        return;
+    }
+    try {
+        const data = await api(`/api/convert?amount=${amount}&from_cur=${fromCur}&to_cur=${toCur}`);
+        document.getElementById("toAmount").value = data.result;
+        if (info) info.textContent = `1 ${fromCur} ≈ ${(data.result / amount).toFixed(4)} ${toCur}`;
+    } catch (e) {
+        if (info) info.textContent = "Ошибка конвертации";
+    }
+}
+
+function swapCurrencies() {
+    const fromSel = document.getElementById("fromCurrency");
+    const toSel = document.getElementById("toCurrency");
+    const fromAmt = document.getElementById("fromAmount");
+    const toAmt = document.getElementById("toAmount");
+    const tmpCur = fromSel.value;
+    fromSel.value = toSel.value;
+    toSel.value = tmpCur;
+    fromAmt.value = toAmt.value;
+    doConvert();
+}
+
+async function loadFinanceStats() {
+    try {
+        const stats = await api("/api/stats");
+        const el = document.getElementById("financeStats");
+        if (el) {
+            el.innerHTML = `
+                <div class="stat-card" style="border-color:#34C759;"><div class="stat-value" style="color:#34C759;">$${stats.income_month || 0}</div><div class="stat-label">Доход/мес</div></div>
+                <div class="stat-card" style="border-color:#FF453A;"><div class="stat-value" style="color:#FF453A;">$${stats.expenses_month || 0}</div><div class="stat-label">Расходы/мес</div></div>
+                <div class="stat-card" style="border-color:var(--accent);"><div class="stat-value">${stats.net_profit_month >= 0 ? "+" : ""}$${stats.net_profit_month || 0}</div><div class="stat-label">Прибыль/мес</div></div>
+                ${stats.pending_payment > 0 ? `<div class="stat-card" style="border-color:#FFD60A;"><div class="stat-value" style="color:#FFD60A;">$${stats.pending_payment}</div><div class="stat-label">Ожидает оплаты</div></div>` : ""}
+            `;
+        }
+    } catch (e) {}
+    try {
+        const expenses = await api("/api/expenses");
+        const el = document.getElementById("expensesList");
+        if (el && expenses.length > 0) {
+            el.innerHTML = `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">Последние расходы:</div>` + expenses.slice(0, 5).map(e => `
+                <div class="card" style="padding:10px 12px;">
+                    <div class="card-header">
+                        <span class="card-title" style="font-size:13px;">${esc(e.description || "Расход")}</span>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <span style="color:#FF453A;font-size:12px;font-weight:600;">-$${e.amount} ${e.currency}</span>
+                            <button class="note-action-btn" onclick="deleteExpense(${e.id})">✕</button>
+                        </div>
+                    </div>
+                    <div class="card-meta"><span>${formatDate(e.created_at)}</span><span>${esc(e.category)}</span></div>
+                </div>`).join("");
+        }
+    } catch (e) {}
+}
+
+function showAddExpense() {
+    openModal(`
+        <div class="modal-title">Новый расход</div>
+        <div class="input-group"><label>Сумма</label><input type="number" id="expenseAmount" placeholder="0.00" step="0.01"></div>
+        <div class="input-group"><label>Валюта</label>
+            <select id="expenseCurrency"><option value="USDT" selected>USDT</option><option value="USD">USD</option><option value="RUB">RUB</option><option value="EUR">EUR</option></select>
+        </div>
+        <div class="input-group"><label>Описание</label><input type="text" id="expenseDesc" placeholder="На что потрачено?"></div>
+        <div class="input-group"><label>Категория</label>
+            <select id="expenseCat"><option value="sources">Исходники</option><option value="plugins">Плагины</option><option value="proxy">Прокси</option><option value="ads">Реклама</option><option value="other" selected>Другое</option></select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal()">Отмена</button>
+            <button class="btn-primary" onclick="saveExpense()">Добавить</button>
+        </div>
+    `);
+}
+
+async function saveExpense() {
+    const data = {
+        amount: parseFloat(document.getElementById("expenseAmount").value) || 0,
+        currency: document.getElementById("expenseCurrency").value,
+        description: document.getElementById("expenseDesc").value.trim(),
+        category: document.getElementById("expenseCat").value,
+    };
+    if (!data.amount) return;
+    await api("/api/expenses", { method: "POST", body: JSON.stringify(data) });
+    closeModal();
+    loadConverter();
+    loadDashboard();
+}
+
+async function deleteExpense(id) {
+    await api(`/api/expenses/${id}`, { method: "DELETE" });
+    loadConverter();
+    loadDashboard();
+}
+
+// ── Reminders ──
+
+function showAddReminder(editId, editData) {
+    const isEdit = !!editId;
+    const title = isEdit ? "Редактировать напоминание" : "Новое напоминание";
+    const btnText = isEdit ? "Сохранить" : "Добавить";
+    const dateVal = editData?.remind_at ? editData.remind_at.replace(" ", "T").slice(0, 16) : "";
+    const msgVal = editData?.message || "";
+    const promoVal = editData?.promo_id || "";
+    openModal(`
+        <div class="modal-title">${title}</div>
+        <div class="input-group">
+            <label>Дата и время</label>
+            <input type="datetime-local" id="reminderDate" value="${dateVal}">
+        </div>
+        <div class="input-group">
+            <label>Сообщение</label>
+            <input type="text" id="reminderMessage" placeholder="О чем напомнить?" value="${esc(msgVal)}">
+        </div>
+        <div class="input-group">
+            <label>Привязать к промо (необязательно)</label>
+            <select id="reminderPromo">
+                <option value="">Без привязки</option>
+                ${promos.map((p) => `<option value="${p.id}" ${p.id == promoVal ? "selected" : ""}>${esc(p.name)}</option>`).join("")}
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeModal()">Отмена</button>
+            <button class="btn-primary" onclick="saveReminder(${editId || 'null'})">${btnText}</button>
+        </div>
+    `);
+}
+
+async function saveReminder(editId) {
+    const data = {
+        remind_at: document.getElementById("reminderDate").value?.replace("T", " "),
+        message: document.getElementById("reminderMessage").value.trim(),
+        promo_id: parseInt(document.getElementById("reminderPromo").value) || null,
+    };
+    if (!data.remind_at) {
+        tg?.showAlert?.("Укажите дату и время") || alert("Укажите дату и время");
+        return;
+    }
+    try {
+        if (editId) {
+            await api(`/api/reminders/${editId}`, { method: "PUT", body: JSON.stringify(data) });
+        } else {
+            await api("/api/reminders", { method: "POST", body: JSON.stringify(data) });
+        }
+        closeModal();
+        loadDashboard();
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function deleteReminder(id) {
+    try {
+        await api(`/api/reminders/${id}`, { method: "DELETE" });
+        loadDashboard();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+// ── Profile ──
+
+async function loadProfile() {
+    try {
+        const profile = await api("/api/profile");
+        document.getElementById("profileName").textContent = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || "—";
+        document.getElementById("profileUsername").textContent = profile.username ? `@${profile.username}` : "—";
+        document.getElementById("profilePromoCount").textContent = profile.promos_count;
+        document.getElementById("profileDoneCount").textContent = profile.done_count;
+        // Load avatar
+        const avatarEl = document.getElementById("profileAvatar");
+        if (profile.telegram_id) {
+            const img = new Image();
+            img.onload = () => { avatarEl.innerHTML = ""; avatarEl.appendChild(img); };
+            img.src = `/api/avatar/${profile.telegram_id}`;
+            img.style.width = "100%";
+            img.style.height = "100%";
+            img.style.borderRadius = "50%";
+            img.style.objectFit = "cover";
+        }
+        // Admin stats inline
+        const adminInline = document.getElementById("adminInlineSection");
+        if (profile.is_admin && adminInline) {
+            adminInline.style.display = "block";
+            loadAdminInline();
+        }
+    } catch (e) {
+        console.error(e);
+    }
+
+}
+
+// ── Modal ──
+
+function openModal(html) {
+    document.getElementById("modalContent").innerHTML = html;
+    document.getElementById("modal").classList.add("active");
+}
+
+function closeModal() {
+    document.getElementById("modal").classList.remove("active");
+}
+
+// ── Helpers ──
+
+function esc(str) {
+    if (!str) return "";
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function statusLabel(status) {
+    switch (status) {
+        case "done": return "Готово";
+        case "in_progress": return "В процессе";
+        default: return "Не готово";
+    }
+}
+
+function paymentLabel(status) {
+    switch (status) {
+        case "paid": return "Оплачен";
+        case "partial": return "Частично";
+        default: return "Ожидается";
+    }
+}
+
+// ── Admin (inline in profile) ──
+
+async function loadAdminInline() {
+    try {
+        const stats = await api("/api/admin/stats");
+        document.getElementById("adminStatUsers").textContent = stats.total_users;
+        document.getElementById("adminStatPromos").textContent = stats.total_promos;
+    } catch (e) {
+        console.error(e);
+    }
+    try {
+        const users = await api("/api/admin/users");
+        const container = document.getElementById("adminUsersList");
+        if (!users.length) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-text">Нет пользователей</div></div>';
+            return;
+        }
+        container.innerHTML = users.map(u => `
+            <div class="card" onclick="adminViewUser(${u.telegram_id})">
+                <div class="card-header">
+                    <div class="card-title">${esc(u.first_name || "")} ${esc(u.last_name || "")}</div>
+                    <button class="btn-icon danger" onclick="event.stopPropagation(); adminDeleteUser(${u.telegram_id})">✕</button>
+                </div>
+                <div class="card-body">
+                    <span class="card-meta">ID: ${u.telegram_id} ${u.username ? `· @${esc(u.username)}` : ""} · Промо: ${u.promos_count} · Готово: ${u.done_count}</span>
+                </div>
+            </div>
+        `).join("");
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function adminViewUser(telegramId) {
+    try {
+        const [advs, prms] = await Promise.all([
+            api(`/api/admin/users/${telegramId}/advertisers`),
+            api(`/api/admin/users/${telegramId}/promos`),
+        ]);
+        let html = `<div class="modal-header"><h3>Данные пользователя ${telegramId}</h3></div>`;
+        html += `<div class="section"><h4 style="margin-bottom:8px">Рекламодатели (${advs.length})</h4>`;
+        if (advs.length) {
+            html += advs.map(a => `<div class="card"><div class="card-header"><div class="card-title">${esc(a.name)}</div></div><div class="card-body">${a.username ? `<span class="card-meta">@${esc(a.username)}</span>` : ""}${a.link ? `<span class="card-meta">${esc(a.link)}</span>` : ""}</div></div>`).join("");
+        } else {
+            html += '<div class="empty-state"><div class="empty-text">Нет рекламодателей</div></div>';
+        }
+        html += `</div><div class="section"><h4 style="margin-bottom:8px">Промо (${prms.length})</h4>`;
+        if (prms.length) {
+            html += prms.map(p => `<div class="card"><div class="card-header"><div class="card-title">${esc(p.name)}</div><span class="badge badge-${p.status}">${statusLabel(p.status)}</span></div><div class="card-body">${p.advertiser_name ? `<span class="card-meta">${esc(p.advertiser_name)}</span>` : ""}${p.price_usdt ? `<span class="card-meta">${p.price_usdt} USDT</span>` : ""}${p.deadline ? `<span class="card-meta">${formatDate(p.deadline)}</span>` : ""}</div></div>`).join("");
+        } else {
+            html += '<div class="empty-state"><div class="empty-text">Нет промо</div></div>';
+        }
+        html += `</div><button class="btn-secondary" onclick="closeModal()" style="width:100%;margin-top:12px">Закрыть</button>`;
+        openModal(html);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function adminDeleteUser(telegramId) {
+    if (!confirm(`Удалить пользователя ${telegramId} и все его данные?`)) return;
+    try {
+        await api(`/api/admin/users/${telegramId}`, { method: "DELETE" });
+        loadAdminInline();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return "—";
+    const d = new Date(dateStr.replace(" ", "T"));
+    if (isNaN(d.getTime())) return dateStr;
+    const now = new Date();
+    const diff = d - now;
+    const pad = (n) => String(n).padStart(2, "0");
+
+    let relative = "";
+    if (diff < 0) {
+        relative = " (просрочено)";
+    } else if (diff < 3600000) {
+        relative = ` (через ${Math.floor(diff / 60000)} мин)`;
+    } else if (diff < 86400000) {
+        relative = ` (через ${Math.floor(diff / 3600000)} ч)`;
+    }
+
+    return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}${relative}`;
+}
