@@ -154,7 +154,7 @@ async function loadDashboard() {
 
         const container = document.getElementById("upcomingDeadlines");
         if (upcoming.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-text">Нет активных дедлайнов</div></div>';
+            container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><div class="empty-text">Нет активных дедлайнов</div></div>';
         } else {
             container.innerHTML = upcoming.map((p) => {
                 const dl = new Date(p.deadline);
@@ -185,7 +185,7 @@ async function loadDashboard() {
         const reminders = await api("/api/reminders");
         const container = document.getElementById("remindersList");
         if (reminders.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔔</div><div class="empty-text">Нет напоминаний</div></div>';
+            container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg><div class="empty-text">Нет напоминаний</div></div>';
         } else {
             container.innerHTML = reminders.map((r) => `
                 <div class="card">
@@ -211,7 +211,7 @@ async function loadAdvertisers() {
         advertisers = await api("/api/advertisers");
         const container = document.getElementById("advertisersList");
         if (advertisers.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">👤</div><div class="empty-text">Нет рекламодателей.<br>Нажмите + Добавить</div></div>';
+            container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg><div class="empty-text">Нет рекламодателей.<br>Нажмите + Добавить</div></div>';
         } else {
             container.innerHTML = advertisers.map((a) => `
                 <div class="card" onclick="showAdvertiserDetail(${a.id})">
@@ -336,7 +336,7 @@ function renderPromos() {
 
     const container = document.getElementById("promosList");
     if (filtered.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔗</div><div class="empty-text">Нет промо-ссылок.<br>Нажмите + Добавить</div></div>';
+        container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg><div class="empty-text">Нет промо-ссылок.<br>Нажмите + Добавить</div></div>';
         return;
     }
 
@@ -356,9 +356,9 @@ function renderPromos() {
                 <div class="card-header">
                     <span class="card-title">${esc(p.name)}</span>
                     <select class="status-select ${p.status}" onchange="event.stopPropagation(); changePromoStatus(${p.id}, this.value)" onclick="event.stopPropagation()">
-                        <option value="not_ready" ${p.status === "not_ready" ? "selected" : ""}>⏳ Не готово</option>
-                        <option value="in_progress" ${p.status === "in_progress" ? "selected" : ""}>🔄 В процессе</option>
-                        <option value="done" ${p.status === "done" ? "selected" : ""}>✅ Готово</option>
+                        <option value="not_ready" ${p.status === "not_ready" ? "selected" : ""}>Не готово</option>
+                        <option value="in_progress" ${p.status === "in_progress" ? "selected" : ""}>В процессе</option>
+                        <option value="done" ${p.status === "done" ? "selected" : ""}>Готово</option>
                     </select>
                 </div>
                 <div class="card-subtitle">${esc(p.advertiser_name || "—")}</div>
@@ -403,9 +403,9 @@ function showAddPromo(existing = null) {
         <div class="input-group">
             <label>Статус</label>
             <select id="promoStatus">
-                <option value="not_ready" ${existing?.status === "not_ready" ? "selected" : ""}>⏳ Не готово</option>
-                <option value="in_progress" ${existing?.status === "in_progress" ? "selected" : ""}>🔄 В процессе</option>
-                <option value="done" ${existing?.status === "done" ? "selected" : ""}>✅ Готово</option>
+                <option value="not_ready" ${existing?.status === "not_ready" ? "selected" : ""}>Не готово</option>
+                <option value="in_progress" ${existing?.status === "in_progress" ? "selected" : ""}>В процессе</option>
+                <option value="done" ${existing?.status === "done" ? "selected" : ""}>Готово</option>
             </select>
         </div>
         <div class="input-group">
@@ -480,9 +480,12 @@ async function showPromoDetail(id) {
         const notes = await api(`/api/notes?promo_id=${id}`);
         notesHtml = notes.map((n) => `
             <div class="note-item">
-                ${esc(n.content)}
+                <div class="note-content" id="note-text-${n.id}">${esc(n.content)}</div>
                 <div class="note-date">${formatDate(n.created_at)}</div>
-                <button class="note-delete" onclick="deleteNote(${n.id}, ${id})">✕</button>
+                <div class="note-actions">
+                    <button class="note-action-btn" onclick="editNote(${n.id}, ${id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                    <button class="note-action-btn" onclick="deleteNote(${n.id}, ${id})">✕</button>
+                </div>
             </div>`).join("");
     } catch (e) {
         console.error(e);
@@ -527,6 +530,26 @@ async function addNoteToPromo(promoId) {
             body: JSON.stringify({ promo_id: promoId, content: input.value.trim() }),
         });
         showPromoDetail(promoId);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function editNote(noteId, promoId) {
+    const el = document.getElementById(`note-text-${noteId}`);
+    if (!el) return;
+    const oldContent = el.textContent.trim();
+    el.innerHTML = `<div style="display:flex;gap:6px;"><input type="text" id="edit-note-${noteId}" value="${esc(oldContent)}" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--accent);padding:8px;border-radius:var(--radius-sm);font-size:13px;"><button class="btn-primary btn-sm" onclick="saveNote(${noteId}, ${promoId})">OK</button></div>`;
+    document.getElementById(`edit-note-${noteId}`)?.focus();
+}
+
+async function saveNote(noteId, promoId) {
+    const input = document.getElementById(`edit-note-${noteId}`);
+    if (!input?.value.trim()) return;
+    try {
+        await api(`/api/notes/${noteId}`, { method: "PUT", body: JSON.stringify({ content: input.value.trim() }) });
+        if (promoId) showPromoDetail(promoId);
+        else loadProfile();
     } catch (e) {
         console.error(e);
     }
@@ -666,13 +689,16 @@ async function loadProfile() {
         const notes = await api("/api/notes");
         const container = document.getElementById("allNotesList");
         if (notes.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">📝</div><div class="empty-text">Нет заметок</div></div>';
+            container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><div class="empty-text">Нет заметок</div></div>';
         } else {
             container.innerHTML = notes.map((n) => `
                 <div class="note-item">
-                    ${esc(n.content)}
+                    <div class="note-content" id="note-text-${n.id}">${esc(n.content)}</div>
                     <div class="note-date">${formatDate(n.created_at)}</div>
-                    <button class="note-delete" onclick="deleteNote(${n.id})">✕</button>
+                    <div class="note-actions">
+                        <button class="note-action-btn" onclick="editNote(${n.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                        <button class="note-action-btn" onclick="deleteNote(${n.id})">✕</button>
+                    </div>
                 </div>`).join("");
         }
     } catch (e) {
@@ -702,9 +728,9 @@ function esc(str) {
 
 function statusLabel(status) {
     switch (status) {
-        case "done": return "✅ Готово";
-        case "in_progress": return "🔄 В процессе";
-        default: return "⏳ Не готово";
+        case "done": return "Готово";
+        case "in_progress": return "В процессе";
+        default: return "Не готово";
     }
 }
 
@@ -725,7 +751,7 @@ async function loadAdminPanel() {
         const users = await api("/api/admin/users");
         const container = document.getElementById("adminUsersList");
         if (!users.length) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">Нет пользователей</div></div>';
+            container.innerHTML = '<div class="empty-state"><svg class="empty-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg><div class="empty-text">Нет пользователей</div></div>';
             return;
         }
         container.innerHTML = users.map(u => `
@@ -733,7 +759,7 @@ async function loadAdminPanel() {
                 <div class="card-header">
                     <div class="card-title">${esc(u.first_name || "")} ${esc(u.last_name || "")}</div>
                     <div class="card-actions">
-                        <button class="btn-icon" onclick="adminViewUser(${u.telegram_id})">👁</button>
+                        <button class="btn-icon" onclick="adminViewUser(${u.telegram_id})"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
                         <button class="btn-icon danger" onclick="adminDeleteUser(${u.telegram_id})">✕</button>
                     </div>
                 </div>

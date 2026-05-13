@@ -48,7 +48,7 @@ body {
     z-index: 1;
 }
 
-/* ── Navigation (pill style) ── */
+/* ── Navigation (pill style, neon) ── */
 .bottom-nav {
     position: fixed;
     bottom: 12px;
@@ -56,15 +56,14 @@ body {
     right: 10px;
     display: flex;
     align-items: center;
-    background: rgba(28, 28, 30, 0.92);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-radius: 18px;
-    padding: 3px;
+    background: rgba(18, 18, 20, 0.95);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-radius: 22px;
+    padding: 5px;
     z-index: 100;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 20px rgba(139, 92, 246, 0.08);
 }
 
 .nav-btn {
@@ -73,32 +72,43 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 1px;
-    padding: 8px 2px;
+    gap: 4px;
+    padding: 12px 4px;
     background: none;
     border: none;
-    color: var(--text-secondary);
+    color: rgba(255, 255, 255, 0.4);
     cursor: pointer;
     transition: all 0.3s ease;
     -webkit-tap-highlight-color: transparent;
-    border-radius: 14px;
+    border-radius: 17px;
     position: relative;
 }
 
 .nav-btn.active {
-    color: var(--text);
-    background: rgba(139, 92, 246, 0.18);
+    color: #ffffff;
+    background: rgba(139, 92, 246, 0.2);
 }
 
-.nav-icon {
-    font-size: 16px;
-    line-height: 1;
+.nav-btn.active .nav-svg {
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.7)) drop-shadow(0 0 12px rgba(139, 92, 246, 0.5));
+}
+
+.nav-btn.active .nav-label {
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.nav-svg {
+    width: 24px;
+    height: 24px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: filter 0.3s ease;
 }
 
 .nav-label {
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 600;
-    letter-spacing: 0.2px;
+    letter-spacing: 0.3px;
     text-transform: uppercase;
     white-space: nowrap;
     overflow: hidden;
@@ -111,19 +121,19 @@ body {
         bottom: 8px;
         left: 6px;
         right: 6px;
-        padding: 2px;
-        border-radius: 16px;
+        padding: 4px;
+        border-radius: 20px;
     }
     .nav-btn {
-        padding: 7px 1px;
-        border-radius: 12px;
+        padding: 10px 2px;
+        gap: 3px;
     }
-    .nav-icon {
-        font-size: 15px;
+    .nav-svg {
+        width: 22px;
+        height: 22px;
     }
     .nav-label {
-        font-size: 7px;
-        letter-spacing: 0;
+        font-size: 8px;
     }
 }
 
@@ -701,6 +711,17 @@ body {
     opacity: 0.4;
 }
 
+.empty-svg {
+    width: 48px;
+    height: 48px;
+    margin-bottom: 14px;
+    opacity: 0.35;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    color: var(--accent-light);
+    filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.3));
+}
+
 .empty-state .empty-text {
     font-size: 14px;
 }
@@ -731,6 +752,37 @@ body {
     color: #666;
     cursor: pointer;
     font-size: 14px;
+}
+
+.note-actions {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    display: flex;
+    gap: 6px;
+}
+
+.note-action-btn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.35);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: color 0.2s, background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+}
+
+.note-action-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.note-content {
+    padding-right: 56px;
 }
 
 /* ── List ── */

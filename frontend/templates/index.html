@@ -14,27 +14,27 @@
         <!-- Navigation -->
         <nav class="bottom-nav" id="bottomNav">
             <button class="nav-btn active" data-page="dashboard" onclick="showPage('dashboard')">
-                <span class="nav-icon">🏠</span>
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>
                 <span class="nav-label">Главная</span>
             </button>
             <button class="nav-btn" data-page="advertisers" onclick="showPage('advertisers')">
-                <span class="nav-icon">👤</span>
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg>
                 <span class="nav-label">Контакты</span>
             </button>
             <button class="nav-btn" data-page="promos" onclick="showPage('promos')">
-                <span class="nav-icon">🔗</span>
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
                 <span class="nav-label">Промо</span>
             </button>
             <button class="nav-btn" data-page="converter" onclick="showPage('converter')">
-                <span class="nav-icon">💱</span>
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                 <span class="nav-label">Курс</span>
             </button>
             <button class="nav-btn" data-page="profile" onclick="showPage('profile')">
-                <span class="nav-icon">⚙️</span>
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
                 <span class="nav-label">Профиль</span>
             </button>
             <button class="nav-btn" data-page="admin" onclick="showPage('admin')" id="adminNavBtn" style="display:none">
-                <span class="nav-icon">🛡</span>
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 <span class="nav-label">Админ</span>
             </button>
         </nav>
@@ -98,9 +98,9 @@
                 </select>
                 <select id="promoFilterStatus" onchange="filterPromos()">
                     <option value="">Все статусы</option>
-                    <option value="not_ready">⏳ Не готово</option>
-                    <option value="in_progress">🔄 В процессе</option>
-                    <option value="done">✅ Готово</option>
+                    <option value="not_ready">Не готово</option>
+                    <option value="in_progress">В процессе</option>
+                    <option value="done">Готово</option>
                 </select>
             </div>
             <div id="promosList" class="list"></div>
@@ -137,7 +137,7 @@
                 <h1>Профиль</h1>
             </div>
             <div class="profile-card" id="profileCard">
-                <div class="profile-avatar" id="profileAvatar">👤</div>
+                <div class="profile-avatar" id="profileAvatar"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg></div>
                 <div class="profile-name" id="profileName">—</div>
                 <div class="profile-username" id="profileUsername">—</div>
                 <div class="profile-stats">
