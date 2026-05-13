@@ -336,10 +336,16 @@ async def create_note(request: Request, user=Depends(get_current_user), db=Depen
 async def update_note(note_id: int, request: Request, user=Depends(get_current_user), db=Depends(get_db)):
     data = await request.json()
     telegram_id = user.get("id", 0)
-    await db.execute(
-        "UPDATE notes SET content = ? WHERE id = ? AND user_id = ?",
-        (data["content"], note_id, telegram_id),
-    )
+    if "created_at" in data:
+        await db.execute(
+            "UPDATE notes SET content = ?, created_at = ? WHERE id = ? AND user_id = ?",
+            (data["content"], data["created_at"], note_id, telegram_id),
+        )
+    else:
+        await db.execute(
+            "UPDATE notes SET content = ? WHERE id = ? AND user_id = ?",
+            (data["content"], note_id, telegram_id),
+        )
     await db.commit()
     row = await db.execute("SELECT * FROM notes WHERE id = ?", (note_id,))
     return dict(await row.fetchone())

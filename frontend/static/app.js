@@ -26,12 +26,12 @@ function initParticles() {
             particles.push({
                 x: Math.random() * w,
                 y: Math.random() * h,
-                r: Math.random() * 3.5 + 0.8,
+                r: Math.random() * 5 + 1.2,
                 dx: (Math.random() - 0.5) * 0.3,
                 dy: (Math.random() - 0.5) * 0.3,
-                alpha: Math.random() * 0.55 + 0.2,
+                alpha: Math.random() * 0.6 + 0.25,
                 pulse: Math.random() * Math.PI * 2,
-                glow: Math.random() * 10 + 5,
+                glow: Math.random() * 14 + 6,
             });
         }
     }
@@ -481,7 +481,7 @@ async function showPromoDetail(id) {
         notesHtml = notes.map((n) => `
             <div class="note-item">
                 <div class="note-content" id="note-text-${n.id}">${esc(n.content)}</div>
-                <div class="note-date">${formatDate(n.created_at)}</div>
+                <div class="note-date" id="note-date-${n.id}" data-raw="${esc(n.created_at || '')}">${formatDate(n.created_at)}</div>
                 <div class="note-actions">
                     <button class="note-action-btn" onclick="editNote(${n.id}, ${id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
                     <button class="note-action-btn" onclick="deleteNote(${n.id}, ${id})">✕</button>
@@ -537,17 +537,32 @@ async function addNoteToPromo(promoId) {
 
 async function editNote(noteId, promoId) {
     const el = document.getElementById(`note-text-${noteId}`);
+    const dateEl = document.getElementById(`note-date-${noteId}`);
     if (!el) return;
     const oldContent = el.textContent.trim();
-    el.innerHTML = `<div style="display:flex;gap:6px;"><input type="text" id="edit-note-${noteId}" value="${esc(oldContent)}" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--accent);padding:8px;border-radius:var(--radius-sm);font-size:13px;"><button class="btn-primary btn-sm" onclick="saveNote(${noteId}, ${promoId})">OK</button></div>`;
+    const rawDate = dateEl?.dataset?.raw || "";
+    const dateVal = rawDate ? rawDate.replace(" ", "T").substring(0, 16) : "";
+    const noteItem = el.closest(".note-item");
+    if (!noteItem) return;
+    noteItem.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:8px;">
+            <input type="text" id="edit-note-${noteId}" value="${esc(oldContent)}" style="background:var(--bg);color:var(--text);border:1px solid var(--accent);padding:8px;border-radius:var(--radius-sm);font-size:13px;">
+            <div style="display:flex;gap:6px;align-items:center;">
+                <input type="datetime-local" id="edit-note-date-${noteId}" value="${dateVal}" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:8px;border-radius:var(--radius-sm);font-size:12px;">
+                <button class="btn-primary btn-sm" onclick="saveNote(${noteId}, ${promoId})">OK</button>
+            </div>
+        </div>`;
     document.getElementById(`edit-note-${noteId}`)?.focus();
 }
 
 async function saveNote(noteId, promoId) {
     const input = document.getElementById(`edit-note-${noteId}`);
+    const dateInput = document.getElementById(`edit-note-date-${noteId}`);
     if (!input?.value.trim()) return;
+    const body = { content: input.value.trim() };
+    if (dateInput?.value) body.created_at = dateInput.value.replace("T", " ");
     try {
-        await api(`/api/notes/${noteId}`, { method: "PUT", body: JSON.stringify({ content: input.value.trim() }) });
+        await api(`/api/notes/${noteId}`, { method: "PUT", body: JSON.stringify(body) });
         if (promoId) showPromoDetail(promoId);
         else loadProfile();
     } catch (e) {
@@ -694,7 +709,7 @@ async function loadProfile() {
             container.innerHTML = notes.map((n) => `
                 <div class="note-item">
                     <div class="note-content" id="note-text-${n.id}">${esc(n.content)}</div>
-                    <div class="note-date">${formatDate(n.created_at)}</div>
+                    <div class="note-date" id="note-date-${n.id}" data-raw="${esc(n.created_at || '')}">${formatDate(n.created_at)}</div>
                     <div class="note-actions">
                         <button class="note-action-btn" onclick="editNote(${n.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
                         <button class="note-action-btn" onclick="deleteNote(${n.id})">✕</button>
