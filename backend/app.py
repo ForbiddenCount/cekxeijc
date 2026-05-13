@@ -228,21 +228,17 @@ async def delete_advertiser(adv_id: int, user=Depends(get_current_user), db=Depe
 
 @app.get("/api/promos")
 async def list_promos(
-    advertiser_id: int | None = None,
     category: str | None = None,
     user=Depends(get_current_user),
     db=Depends(get_db),
 ):
     telegram_id = user.get("id", 0)
-    base = "SELECT p.*, a.name as advertiser_name FROM promos p LEFT JOIN advertisers a ON p.advertiser_id = a.id WHERE p.user_id = ?"
+    base = "SELECT * FROM promos WHERE user_id = ?"
     params = [telegram_id]
-    if advertiser_id:
-        base += " AND p.advertiser_id = ?"
-        params.append(advertiser_id)
     if category:
-        base += " AND p.category = ?"
+        base += " AND category = ?"
         params.append(category)
-    base += " ORDER BY p.deadline ASC NULLS LAST, p.created_at DESC"
+    base += " ORDER BY deadline ASC NULLS LAST, created_at DESC"
     rows = await db.execute(base, params)
     return [dict(r) for r in await rows.fetchall()]
 
@@ -252,9 +248,8 @@ async def create_promo(request: Request, user=Depends(get_current_user), db=Depe
     data = await request.json()
     telegram_id = user.get("id", 0)
     await db.execute(
-        "INSERT INTO promos (advertiser_id, user_id, name, link, price_usdt, status, deadline, notes, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO promos (user_id, name, link, price_usdt, status, deadline, notes, category, advertiser_name, advertiser_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)",
         (
-            data["advertiser_id"],
             telegram_id,
             data["name"],
             data.get("link", ""),
@@ -263,6 +258,7 @@ async def create_promo(request: Request, user=Depends(get_current_user), db=Depe
             data.get("deadline"),
             data.get("notes", ""),
             data.get("category", "yokoso"),
+            data.get("advertiser_name", ""),
         ),
     )
     await db.commit()
@@ -275,7 +271,7 @@ async def update_promo(promo_id: int, request: Request, user=Depends(get_current
     data = await request.json()
     telegram_id = user.get("id", 0)
     await db.execute(
-        "UPDATE promos SET name=?, link=?, price_usdt=?, status=?, deadline=?, notes=?, advertiser_id=?, category=? WHERE id=? AND user_id=?",
+        "UPDATE promos SET name=?, link=?, price_usdt=?, status=?, deadline=?, notes=?, category=?, advertiser_name=? WHERE id=? AND user_id=?",
         (
             data["name"],
             data.get("link", ""),
@@ -283,8 +279,8 @@ async def update_promo(promo_id: int, request: Request, user=Depends(get_current
             data.get("status", "not_ready"),
             data.get("deadline"),
             data.get("notes", ""),
-            data.get("advertiser_id"),
             data.get("category", "yokoso"),
+            data.get("advertiser_name", ""),
             promo_id,
             telegram_id,
         ),

@@ -82,4 +82,14 @@ async def init_db():
             await db.execute("ALTER TABLE promos ADD COLUMN category TEXT DEFAULT 'yokoso'")
         except Exception:
             pass
+        # Migration: add advertiser_name column if missing
+        try:
+            await db.execute("ALTER TABLE promos ADD COLUMN advertiser_name TEXT DEFAULT ''")
+        except Exception:
+            pass
+        # Backfill advertiser_name from advertisers table
+        try:
+            await db.execute("UPDATE promos SET advertiser_name = (SELECT a.name FROM advertisers a WHERE a.id = promos.advertiser_id) WHERE advertiser_name = '' AND advertiser_id > 0")
+        except Exception:
+            pass
         await db.commit()

@@ -132,8 +132,36 @@ function showPage(page) {
 
 async function loadMore() {
     loadProfile();
-    loadAdvertisers();
     if (currentUser?.is_admin) loadAdminPanel();
+}
+
+function updateNavBadges(profile) {
+    const yokosoActive = profile.yokoso_total - profile.yokoso_done;
+    const sakoActive = profile.sako_total - profile.sako_done;
+    setBadge("yokoso", yokosoActive);
+    setBadge("sako", sakoActive);
+}
+
+function setBadge(page, count) {
+    const btn = document.querySelector(`.nav-btn[data-page="${page}"]`);
+    if (!btn) return;
+    let badge = btn.querySelector(".nav-badge");
+    if (count > 0) {
+        if (!badge) {
+            badge = document.createElement("span");
+            badge.className = "nav-badge";
+            btn.appendChild(badge);
+        }
+        badge.textContent = count;
+    } else if (badge) {
+        badge.remove();
+    }
+}
+
+function copyLink(link) {
+    navigator.clipboard.writeText(link).then(() => {
+        if (tg?.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    });
 }
 
 // ── Dashboard ──
@@ -141,10 +169,11 @@ async function loadMore() {
 async function loadDashboard() {
     try {
         const profile = await api("/api/profile");
-        document.getElementById("statAdvertisers").textContent = profile.advertisers_count;
         document.getElementById("statPromos").textContent = profile.promos_count;
+        document.getElementById("statDone").textContent = profile.done_count;
         document.getElementById("statYokoso").textContent = `${profile.yokoso_done}/${profile.yokoso_total}`;
         document.getElementById("statSako").textContent = `${profile.sako_done}/${profile.sako_total}`;
+        updateNavBadges(profile);
     } catch (e) {
         console.error(e);
     }
@@ -168,6 +197,11 @@ async function loadDashboard() {
                 let deadlineClass = "";
                 if (diff < 0) deadlineClass = "overdue";
                 else if (hours < 24) deadlineClass = "soon";
+                const createdAt = new Date(p.created_at || now);
+                const totalMs = dl - createdAt;
+                const elapsedMs = now - createdAt;
+                const progress = totalMs > 0 ? Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100)) : 100;
+                const barColor = diff < 0 ? "#FF453A" : hours < 24 ? "#FFD60A" : "var(--accent)";
                 return `
                     <div class="card" onclick="showPromoDetail(${p.id})">
                         <div class="card-header">
@@ -179,6 +213,7 @@ async function loadDashboard() {
                             <span class="deadline ${deadlineClass}">${formatDate(p.deadline)}</span>
                             ${p.price_usdt ? `<span class="price-usdt">$${p.price_usdt}</span>` : ""}
                         </div>
+                        <div class="deadline-bar"><div class="deadline-bar-fill" style="width:${progress}%;background:${barColor}"></div></div>
                     </div>`;
             }).join("");
         }
@@ -310,11 +345,6 @@ let categoryPromos = { yokoso: [], sako: [] };
 async function loadCategoryPromos(category) {
     currentCategory = category;
     try {
-        advertisers = await api("/api/advertisers");
-    } catch (e) {
-        console.error(e);
-    }
-    try {
         categoryPromos[category] = await api(`/api/promos?category=${category}`);
         renderCategoryPromos(category);
     } catch (e) {
@@ -329,9 +359,23 @@ function filterCategoryPromos(category) {
 function renderCategoryPromos(category) {
     const statusFilter = document.getElementById(`${category}FilterStatus`)?.value;
     const searchQuery = (document.getElementById(`${category}Search`)?.value || "").toLowerCase().trim();
-    let filtered = categoryPromos[category] || [];
+    const sortBy = document.getElementById(`${category}Sort`)?.value || "deadline";
+    let filtered = [...(categoryPromos[category] || [])];
     if (statusFilter) filtered = filtered.filter((p) => p.status === statusFilter);
     if (searchQuery) filtered = filtered.filter((p) => p.name.toLowerCase().includes(searchQuery) || (p.advertiser_name || "").toLowerCase().includes(searchQuery));
+    const statusOrder = { not_ready: 0, in_progress: 1, done: 2 };
+    if (sortBy === "deadline") {
+        filtered.sort((a, b) => {
+            if (!a.deadline && !b.deadline) return 0;
+            if (!a.deadline) return 1;
+            if (!b.deadline) return -1;
+            return new Date(a.deadline) - new Date(b.deadline);
+        });
+    } else if (sortBy === "created") {
+        filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    } else if (sortBy === "status") {
+        filtered.sort((a, b) => (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0));
+    }
     promos = categoryPromos[category] || [];
 
     const container = document.getElementById(`${category}List`);
@@ -351,6 +395,17 @@ function renderCategoryPromos(category) {
             else if (diff < 86400000) cls = "soon";
             deadlineHtml = `<span class="deadline ${cls}">${formatDate(p.deadline)}</span>`;
         }
+        let progressHtml = "";
+        if (p.deadline) {
+            const dl2 = new Date(p.deadline);
+            const createdAt = new Date(p.created_at || now);
+            const totalMs = dl2 - createdAt;
+            const elapsedMs = now - createdAt;
+            const progress = totalMs > 0 ? Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100)) : 100;
+            const diff2 = dl2 - now;
+            const barColor = diff2 < 0 ? "#FF453A" : diff2 < 86400000 ? "#FFD60A" : "var(--accent)";
+            progressHtml = `<div class="deadline-bar"><div class="deadline-bar-fill" style="width:${progress}%;background:${barColor}"></div></div>`;
+        }
         return `
             <div class="card" onclick="showPromoDetail(${p.id})">
                 <div class="card-header">
@@ -361,13 +416,14 @@ function renderCategoryPromos(category) {
                         <option value="done" ${p.status === "done" ? "selected" : ""}>Готово</option>
                     </select>
                 </div>
-                <div class="card-subtitle">${esc(p.advertiser_name || "—")}</div>
+                ${p.advertiser_name ? `<div class="card-subtitle">${esc(p.advertiser_name)}</div>` : ""}
                 <div class="card-meta">
-                    ${p.link ? `<span>Ссылка</span>` : ""}
+                    ${p.link ? `<span class="copy-link" onclick="event.stopPropagation(); copyLink('${esc(p.link)}')">📋 Копировать</span>` : ""}
                     ${deadlineHtml}
                     ${p.price_usdt ? `<span class="price-usdt">$${p.price_usdt} USDT</span>` : ""}
                 </div>
                 ${p.notes ? `<div class="card-meta"><span>${esc(p.notes.substring(0, 80))}${p.notes.length > 80 ? "..." : ""}</span></div>` : ""}
+                ${progressHtml}
             </div>`;
     }).join("");
 }
@@ -387,10 +443,7 @@ function showAddPromo(categoryOrExisting = null) {
         <input type="hidden" id="promoCategory" value="${category}">
         <div class="input-group">
             <label>Рекламодатель</label>
-            <select id="promoAdvId">
-                <option value="">Выберите...</option>
-                ${advertisers.map((a) => `<option value="${a.id}" ${existing?.advertiser_id === a.id ? "selected" : ""}>${esc(a.name)}</option>`).join("")}
-            </select>
+            <input type="text" id="promoAdvertiser" value="${esc(existing?.advertiser_name || "")}" placeholder="Имя / @username (необязательно)">
         </div>
         <div class="input-group">
             <label>Название промо</label>
@@ -450,7 +503,7 @@ async function updatePromoRubPrice() {
 
 async function savePromo(id) {
     const data = {
-        advertiser_id: parseInt(document.getElementById("promoAdvId").value),
+        advertiser_name: document.getElementById("promoAdvertiser").value.trim(),
         name: document.getElementById("promoName").value.trim(),
         link: document.getElementById("promoLink").value.trim(),
         price_usdt: parseFloat(document.getElementById("promoPrice").value) || null,
@@ -459,10 +512,6 @@ async function savePromo(id) {
         notes: document.getElementById("promoNotes").value.trim(),
         category: document.getElementById("promoCategory")?.value || currentCategory,
     };
-    if (!data.advertiser_id) {
-        tg?.showAlert?.("Выберите рекламодателя") || alert("Выберите рекламодателя");
-        return;
-    }
     if (!data.name) {
         tg?.showAlert?.("Введите название промо") || alert("Введите название промо");
         return;
@@ -703,7 +752,6 @@ async function loadProfile() {
         const profile = await api("/api/profile");
         document.getElementById("profileName").textContent = [profile.first_name, profile.last_name].filter(Boolean).join(" ") || "—";
         document.getElementById("profileUsername").textContent = profile.username ? `@${profile.username}` : "—";
-        document.getElementById("profileAdvCount").textContent = profile.advertisers_count;
         document.getElementById("profilePromoCount").textContent = profile.promos_count;
         document.getElementById("profileDoneCount").textContent = profile.done_count;
     } catch (e) {

@@ -54,8 +54,8 @@
                     <div class="stat-label">Промо всего</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value" id="statAdvertisers">0</div>
-                    <div class="stat-label">Рекламодателей</div>
+                    <div class="stat-value" id="statDone">0</div>
+                    <div class="stat-label">Готово</div>
                 </div>
             </div>
             <div class="section">
@@ -80,12 +80,17 @@
                 <button class="btn-primary" onclick="showAddPromo('yokoso')">+ Добавить</button>
             </div>
             <div class="filter-bar">
-                <input type="text" id="yokosoSearch" placeholder="Поиск промо..." oninput="filterCategoryPromos('yokoso')" class="search-input">
+                <input type="text" id="yokosoSearch" placeholder="Поиск..." oninput="filterCategoryPromos('yokoso')" class="search-input">
                 <select id="yokosoFilterStatus" onchange="filterCategoryPromos('yokoso')">
                     <option value="">Все</option>
                     <option value="not_ready">Не готово</option>
                     <option value="in_progress">В процессе</option>
                     <option value="done">Готово</option>
+                </select>
+                <select id="yokosoSort" onchange="filterCategoryPromos('yokoso')">
+                    <option value="deadline">Дедлайн</option>
+                    <option value="created">Дата</option>
+                    <option value="status">Статус</option>
                 </select>
             </div>
             <div id="yokosoList" class="list"></div>
@@ -98,12 +103,17 @@
                 <button class="btn-primary" onclick="showAddPromo('sako')">+ Добавить</button>
             </div>
             <div class="filter-bar">
-                <input type="text" id="sakoSearch" placeholder="Поиск промо..." oninput="filterCategoryPromos('sako')" class="search-input">
+                <input type="text" id="sakoSearch" placeholder="Поиск..." oninput="filterCategoryPromos('sako')" class="search-input">
                 <select id="sakoFilterStatus" onchange="filterCategoryPromos('sako')">
                     <option value="">Все</option>
                     <option value="not_ready">Не готово</option>
                     <option value="in_progress">В процессе</option>
                     <option value="done">Готово</option>
+                </select>
+                <select id="sakoSort" onchange="filterCategoryPromos('sako')">
+                    <option value="deadline">Дедлайн</option>
+                    <option value="created">Дата</option>
+                    <option value="status">Статус</option>
                 </select>
             </div>
             <div id="sakoList" class="list"></div>
@@ -134,7 +144,7 @@
             </div>
         </div>
 
-        <!-- More (Profile + Notes + Advertisers + Admin) -->
+        <!-- More (Profile + Admin) -->
         <div class="page" id="page-more">
             <!-- Profile Section -->
             <div class="profile-card" id="profileCard">
@@ -142,10 +152,6 @@
                 <div class="profile-name" id="profileName">—</div>
                 <div class="profile-username" id="profileUsername">—</div>
                 <div class="profile-stats">
-                    <div class="profile-stat">
-                        <div class="profile-stat-value" id="profileAdvCount">0</div>
-                        <div class="profile-stat-label">Рекламодателей</div>
-                    </div>
                     <div class="profile-stat">
                         <div class="profile-stat-value" id="profilePromoCount">0</div>
                         <div class="profile-stat-label">Промо</div>
@@ -155,15 +161,6 @@
                         <div class="profile-stat-label">Выполнено</div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Advertisers Section -->
-            <div class="section">
-                <div class="section-header">
-                    <h2>Рекламодатели</h2>
-                    <button class="btn-icon" onclick="showAddAdvertiser()">+</button>
-                </div>
-                <div id="advertisersList" class="list"></div>
             </div>
 
             <!-- Admin Section (hidden for non-admins) -->
