@@ -16,7 +16,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         tg.setHeaderColor(
             getComputedStyle(document.documentElement)
                 .getPropertyValue("--tg-theme-bg-color")
-                .trim() || "#1a1a2e"
+                .trim() || "#000000"
         );
     }
     await auth();
@@ -87,7 +87,7 @@ async function loadDashboard() {
 
         const container = document.getElementById("upcomingDeadlines");
         if (upcoming.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-text">Нет активных дедлайнов</div></div>';
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">◇</div><div class="empty-text">Нет активных дедлайнов</div></div>';
         } else {
             container.innerHTML = upcoming.map((p) => {
                 const dl = new Date(p.deadline);
@@ -103,8 +103,8 @@ async function loadDashboard() {
                             <span class="status status-${p.status}">${statusLabel(p.status)}</span>
                         </div>
                         <div class="card-meta">
-                            <span>👤 ${esc(p.advertiser_name || "—")}</span>
-                            <span class="deadline ${deadlineClass}">📅 ${formatDate(p.deadline)}</span>
+                            <span>${esc(p.advertiser_name || "—")}</span>
+                            <span class="deadline ${deadlineClass}">${formatDate(p.deadline)}</span>
                             ${p.price_usdt ? `<span class="price-usdt">$${p.price_usdt}</span>` : ""}
                         </div>
                     </div>`;
@@ -118,17 +118,17 @@ async function loadDashboard() {
         const reminders = await api("/api/reminders");
         const container = document.getElementById("remindersList");
         if (reminders.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔔</div><div class="empty-text">Нет напоминаний</div></div>';
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">○</div><div class="empty-text">Нет напоминаний</div></div>';
         } else {
             container.innerHTML = reminders.map((r) => `
                 <div class="card">
                     <div class="card-header">
-                        <span class="card-title">🔔 ${esc(r.message || r.promo_name || "Напоминание")}</span>
-                        <button class="btn-icon btn-sm" onclick="event.stopPropagation(); deleteReminder(${r.id})" style="background:var(--danger);width:24px;height:24px;font-size:12px;">✕</button>
+                        <span class="card-title">${esc(r.message || r.promo_name || "Напоминание")}</span>
+                        <button class="btn-icon btn-sm" onclick="event.stopPropagation(); deleteReminder(${r.id})" style="width:24px;height:24px;font-size:12px;">✕</button>
                     </div>
                     <div class="card-meta">
-                        <span>⏰ ${formatDate(r.remind_at)}</span>
-                        ${r.promo_name ? `<span>📋 ${esc(r.promo_name)}</span>` : ""}
+                        <span>${formatDate(r.remind_at)}</span>
+                        ${r.promo_name ? `<span>${esc(r.promo_name)}</span>` : ""}
                     </div>
                 </div>`).join("");
         }
@@ -144,7 +144,7 @@ async function loadAdvertisers() {
         advertisers = await api("/api/advertisers");
         const container = document.getElementById("advertisersList");
         if (advertisers.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">👤</div><div class="empty-text">Нет рекламодателей.<br>Нажмите + Добавить</div></div>';
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">◎</div><div class="empty-text">Нет рекламодателей.<br>Нажмите + Добавить</div></div>';
         } else {
             container.innerHTML = advertisers.map((a) => `
                 <div class="card" onclick="showAdvertiserDetail(${a.id})">
@@ -152,8 +152,8 @@ async function loadAdvertisers() {
                         <span class="card-title">${esc(a.name)}</span>
                     </div>
                     ${a.username ? `<div class="card-subtitle">@${esc(a.username)}</div>` : ""}
-                    ${a.link ? `<div class="card-meta"><span>🔗 ${esc(a.link)}</span></div>` : ""}
-                    ${a.notes ? `<div class="card-meta"><span>📝 ${esc(a.notes.substring(0, 60))}${a.notes.length > 60 ? "..." : ""}</span></div>` : ""}
+                    ${a.link ? `<div class="card-meta"><span>${esc(a.link)}</span></div>` : ""}
+                    ${a.notes ? `<div class="card-meta"><span>${esc(a.notes.substring(0, 60))}${a.notes.length > 60 ? "..." : ""}</span></div>` : ""}
                 </div>`).join("");
         }
     } catch (e) {
@@ -164,7 +164,7 @@ async function loadAdvertisers() {
 function showAddAdvertiser(existing = null) {
     const isEdit = !!existing;
     openModal(`
-        <div class="modal-title">${isEdit ? "✏️ Редактировать" : "➕ Новый рекламодатель"}</div>
+        <div class="modal-title">${isEdit ? "Редактировать" : "Новый рекламодатель"}</div>
         <div class="input-group">
             <label>Имя / Название</label>
             <input type="text" id="advName" value="${esc(existing?.name || "")}" placeholder="Название компании или имя">
@@ -269,7 +269,7 @@ function renderPromos() {
 
     const container = document.getElementById("promosList");
     if (filtered.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔗</div><div class="empty-text">Нет промо-ссылок.<br>Нажмите + Добавить</div></div>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-icon">◇</div><div class="empty-text">Нет промо-ссылок.<br>Нажмите + Добавить</div></div>';
         return;
     }
 
@@ -282,25 +282,25 @@ function renderPromos() {
             let cls = "";
             if (diff < 0) cls = "overdue";
             else if (diff < 86400000) cls = "soon";
-            deadlineHtml = `<span class="deadline ${cls}">📅 ${formatDate(p.deadline)}</span>`;
+            deadlineHtml = `<span class="deadline ${cls}">${formatDate(p.deadline)}</span>`;
         }
         return `
             <div class="card" onclick="showPromoDetail(${p.id})">
                 <div class="card-header">
                     <span class="card-title">${esc(p.name)}</span>
                     <select class="status-select ${p.status}" onchange="event.stopPropagation(); changePromoStatus(${p.id}, this.value)" onclick="event.stopPropagation()">
-                        <option value="not_ready" ${p.status === "not_ready" ? "selected" : ""}>❌ Не готово</option>
-                        <option value="in_progress" ${p.status === "in_progress" ? "selected" : ""}>⏳ В процессе</option>
-                        <option value="done" ${p.status === "done" ? "selected" : ""}>✅ Готово</option>
+                        <option value="not_ready" ${p.status === "not_ready" ? "selected" : ""}>— Не готово</option>
+                        <option value="in_progress" ${p.status === "in_progress" ? "selected" : ""}>○ В процессе</option>
+                        <option value="done" ${p.status === "done" ? "selected" : ""}>● Готово</option>
                     </select>
                 </div>
-                <div class="card-subtitle">👤 ${esc(p.advertiser_name || "—")}</div>
+                <div class="card-subtitle">${esc(p.advertiser_name || "—")}</div>
                 <div class="card-meta">
-                    ${p.link ? `<span>🔗 Ссылка</span>` : ""}
+                    ${p.link ? `<span>Ссылка</span>` : ""}
                     ${deadlineHtml}
                     ${p.price_usdt ? `<span class="price-usdt">$${p.price_usdt} USDT</span>` : ""}
                 </div>
-                ${p.notes ? `<div class="card-meta"><span>📝 ${esc(p.notes.substring(0, 80))}${p.notes.length > 80 ? "..." : ""}</span></div>` : ""}
+                ${p.notes ? `<div class="card-meta"><span>${esc(p.notes.substring(0, 80))}${p.notes.length > 80 ? "..." : ""}</span></div>` : ""}
             </div>`;
     }).join("");
 }
@@ -308,7 +308,7 @@ function renderPromos() {
 function showAddPromo(existing = null) {
     const isEdit = !!existing;
     openModal(`
-        <div class="modal-title">${isEdit ? "✏️ Редактировать промо" : "➕ Новое промо"}</div>
+        <div class="modal-title">${isEdit ? "Редактировать промо" : "Новое промо"}</div>
         <div class="input-group">
             <label>Рекламодатель</label>
             <select id="promoAdvId">
@@ -336,9 +336,9 @@ function showAddPromo(existing = null) {
         <div class="input-group">
             <label>Статус</label>
             <select id="promoStatus">
-                <option value="not_ready" ${existing?.status === "not_ready" ? "selected" : ""}>❌ Не готово</option>
-                <option value="in_progress" ${existing?.status === "in_progress" ? "selected" : ""}>⏳ В процессе</option>
-                <option value="done" ${existing?.status === "done" ? "selected" : ""}>✅ Готово</option>
+                <option value="not_ready" ${existing?.status === "not_ready" ? "selected" : ""}>— Не готово</option>
+                <option value="in_progress" ${existing?.status === "in_progress" ? "selected" : ""}>○ В процессе</option>
+                <option value="done" ${existing?.status === "done" ? "selected" : ""}>● Готово</option>
             </select>
         </div>
         <div class="input-group">
@@ -422,20 +422,20 @@ async function showPromoDetail(id) {
     }
 
     openModal(`
-        <div class="modal-title">📋 ${esc(promo.name)}</div>
+        <div class="modal-title">${esc(promo.name)}</div>
         <div style="margin-bottom:16px;">
             <div class="card-meta" style="margin-bottom:8px;">
-                <span>👤 ${esc(promo.advertiser_name || "—")}</span>
+                <span>${esc(promo.advertiser_name || "—")}</span>
                 <span class="status status-${promo.status}">${statusLabel(promo.status)}</span>
             </div>
-            ${promo.link ? `<div class="card-meta" style="margin-bottom:8px;"><a href="${esc(promo.link)}" target="_blank" style="color:var(--link)">🔗 ${esc(promo.link)}</a></div>` : ""}
-            ${promo.deadline ? `<div class="card-meta" style="margin-bottom:8px;"><span>📅 Дедлайн: ${formatDate(promo.deadline)}</span></div>` : ""}
-            ${promo.price_usdt ? `<div class="card-meta"><span class="price-usdt">💰 $${promo.price_usdt} USDT</span><span class="price-rub">≈ ${(promo.price_usdt * exchangeRate).toFixed(2)} RUB</span></div>` : ""}
+            ${promo.link ? `<div class="card-meta" style="margin-bottom:8px;"><a href="${esc(promo.link)}" target="_blank" style="color:var(--link)">${esc(promo.link)}</a></div>` : ""}
+            ${promo.deadline ? `<div class="card-meta" style="margin-bottom:8px;"><span>Дедлайн: ${formatDate(promo.deadline)}</span></div>` : ""}
+            ${promo.price_usdt ? `<div class="card-meta"><span class="price-usdt">$${promo.price_usdt} USDT</span><span class="price-rub">≈ ${(promo.price_usdt * exchangeRate).toFixed(2)} RUB</span></div>` : ""}
         </div>
         
         <div class="section">
             <div class="section-header">
-                <h2>📝 Заметки</h2>
+                <h2>Заметки</h2>
             </div>
             <div id="promoNotesContainer">${notesHtml || '<div class="empty-state"><div class="empty-text">Нет заметок</div></div>'}</div>
             <div style="display:flex;gap:8px;margin-top:10px;">
@@ -446,7 +446,7 @@ async function showPromoDetail(id) {
 
         <div class="modal-actions">
             <button class="btn-secondary" onclick="closeModal()">Закрыть</button>
-            <button class="btn-primary" onclick="closeModal(); showAddPromo(${JSON.stringify(promo).replace(/"/g, '&quot;')})">✏️ Редактировать</button>
+            <button class="btn-primary" onclick="closeModal(); showAddPromo(${JSON.stringify(promo).replace(/"/g, '&quot;')})">Редактировать</button>
         </div>
     `);
 }
@@ -529,7 +529,7 @@ function swapCurrency() {
 
 function showAddReminder() {
     openModal(`
-        <div class="modal-title">🔔 Новое напоминание</div>
+        <div class="modal-title">Новое напоминание</div>
         <div class="input-group">
             <label>Дата и время</label>
             <input type="datetime-local" id="reminderDate">
@@ -599,7 +599,7 @@ async function loadProfile() {
         const notes = await api("/api/notes");
         const container = document.getElementById("allNotesList");
         if (notes.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">📝</div><div class="empty-text">Нет заметок</div></div>';
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">—</div><div class="empty-text">Нет заметок</div></div>';
         } else {
             container.innerHTML = notes.map((n) => `
                 <div class="note-item">
@@ -635,9 +635,9 @@ function esc(str) {
 
 function statusLabel(status) {
     switch (status) {
-        case "done": return "✅ Готово";
-        case "in_progress": return "⏳ В процессе";
-        default: return "❌ Не готово";
+        case "done": return "● Готово";
+        case "in_progress": return "○ В процессе";
+        default: return "— Не готово";
     }
 }
 

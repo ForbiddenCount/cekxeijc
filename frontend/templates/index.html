@@ -12,23 +12,23 @@
         <!-- Navigation -->
         <nav class="bottom-nav" id="bottomNav">
             <button class="nav-btn active" data-page="dashboard" onclick="showPage('dashboard')">
-                <span class="nav-icon">📊</span>
+                <span class="nav-icon">◉</span>
                 <span class="nav-label">Главная</span>
             </button>
             <button class="nav-btn" data-page="advertisers" onclick="showPage('advertisers')">
-                <span class="nav-icon">👤</span>
+                <span class="nav-icon">◎</span>
                 <span class="nav-label">Рекламодатели</span>
             </button>
             <button class="nav-btn" data-page="promos" onclick="showPage('promos')">
-                <span class="nav-icon">🔗</span>
+                <span class="nav-icon">◇</span>
                 <span class="nav-label">Промо</span>
             </button>
             <button class="nav-btn" data-page="converter" onclick="showPage('converter')">
-                <span class="nav-icon">💱</span>
+                <span class="nav-icon">⟡</span>
                 <span class="nav-label">Курс</span>
             </button>
             <button class="nav-btn" data-page="profile" onclick="showPage('profile')">
-                <span class="nav-icon">⚙️</span>
+                <span class="nav-icon">⊙</span>
                 <span class="nav-label">Профиль</span>
             </button>
         </nav>
@@ -36,7 +36,7 @@
         <!-- Dashboard -->
         <div class="page active" id="page-dashboard">
             <div class="header">
-                <h1>📊 Дашборд</h1>
+                <h1>Дашборд</h1>
             </div>
             <div class="stats-grid" id="statsGrid">
                 <div class="stat-card">
@@ -58,13 +58,13 @@
             </div>
             <div class="section">
                 <div class="section-header">
-                    <h2>⏰ Ближайшие дедлайны</h2>
+                    <h2>Ближайшие дедлайны</h2>
                 </div>
                 <div id="upcomingDeadlines" class="list"></div>
             </div>
             <div class="section">
                 <div class="section-header">
-                    <h2>🔔 Напоминания</h2>
+                    <h2>Напоминания</h2>
                     <button class="btn-icon" onclick="showAddReminder()">＋</button>
                 </div>
                 <div id="remindersList" class="list"></div>
@@ -74,7 +74,7 @@
         <!-- Advertisers -->
         <div class="page" id="page-advertisers">
             <div class="header">
-                <h1>👤 Рекламодатели</h1>
+                <h1>Рекламодатели</h1>
                 <button class="btn-primary" onclick="showAddAdvertiser()">+ Добавить</button>
             </div>
             <div id="advertisersList" class="list"></div>
@@ -83,7 +83,7 @@
         <!-- Promos -->
         <div class="page" id="page-promos">
             <div class="header">
-                <h1>🔗 Промо</h1>
+                <h1>Промо</h1>
                 <button class="btn-primary" onclick="showAddPromo()">+ Добавить</button>
             </div>
             <div class="filter-bar">
@@ -92,9 +92,9 @@
                 </select>
                 <select id="promoFilterStatus" onchange="filterPromos()">
                     <option value="">Все статусы</option>
-                    <option value="not_ready">❌ Не готово</option>
-                    <option value="in_progress">⏳ В процессе</option>
-                    <option value="done">✅ Готово</option>
+                    <option value="not_ready">— Не готово</option>
+                    <option value="in_progress">○ В процессе</option>
+                    <option value="done">● Готово</option>
                 </select>
             </div>
             <div id="promosList" class="list"></div>
@@ -103,7 +103,7 @@
         <!-- Converter -->
         <div class="page" id="page-converter">
             <div class="header">
-                <h1>💱 Конвертер USDT/RUB</h1>
+                <h1>Конвертер USDT / RUB</h1>
             </div>
             <div class="converter-card">
                 <div class="rate-display">
@@ -128,10 +128,10 @@
         <!-- Profile -->
         <div class="page" id="page-profile">
             <div class="header">
-                <h1>⚙️ Профиль</h1>
+                <h1>Профиль</h1>
             </div>
             <div class="profile-card" id="profileCard">
-                <div class="profile-avatar" id="profileAvatar">👤</div>
+                <div class="profile-avatar" id="profileAvatar">●</div>
                 <div class="profile-name" id="profileName">—</div>
                 <div class="profile-username" id="profileUsername">—</div>
                 <div class="profile-stats">
@@ -150,7 +150,7 @@
                 </div>
             </div>
             <div class="section">
-                <div class="section-header"><h2>📝 Все заметки</h2></div>
+                <div class="section-header"><h2>Все заметки</h2></div>
                 <div id="allNotesList" class="list"></div>
             </div>
         </div>
