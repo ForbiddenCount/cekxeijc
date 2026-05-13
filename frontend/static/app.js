@@ -105,8 +105,8 @@ async function auth() {
     try {
         currentUser = await api("/api/auth", { method: "POST" });
         if (currentUser && currentUser.is_admin) {
-            const adminBtn = document.getElementById("adminNavBtn");
-            if (adminBtn) adminBtn.style.display = "";
+            const adminSection = document.getElementById("adminSection");
+            if (adminSection) adminSection.style.display = "";
         }
     } catch (e) {
         console.error("Auth failed:", e);
@@ -125,10 +125,14 @@ function showPage(page) {
         case "dashboard": loadDashboard(); break;
         case "advertisers": loadAdvertisers(); break;
         case "promos": loadPromosPage(); break;
-        case "converter": loadConverter(); break;
-        case "profile": loadProfile(); break;
-        case "admin": loadAdminPanel(); break;
+        case "more": loadMore(); break;
     }
+}
+
+async function loadMore() {
+    loadProfile();
+    loadConverter();
+    if (currentUser?.is_admin) loadAdminPanel();
 }
 
 // ── Dashboard ──

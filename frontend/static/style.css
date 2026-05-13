@@ -27,7 +27,7 @@ body {
     background: var(--bg);
     color: var(--text);
     min-height: 100vh;
-    padding-bottom: 130px;
+    padding-bottom: 110px;
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
 }
@@ -72,15 +72,15 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
-    padding: 16px 4px;
+    gap: 5px;
+    padding: 12px 4px;
     background: none;
     border: none;
     color: rgba(255, 255, 255, 0.4);
     cursor: pointer;
     transition: all 0.3s ease;
     -webkit-tap-highlight-color: transparent;
-    border-radius: 20px;
+    border-radius: 16px;
     position: relative;
 }
 
@@ -90,16 +90,16 @@ body {
 }
 
 .nav-btn.active .nav-svg {
-    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8)) drop-shadow(0 0 16px rgba(139, 92, 246, 0.6));
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8)) drop-shadow(0 0 14px rgba(139, 92, 246, 0.5));
 }
 
 .nav-btn.active .nav-label {
-    text-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
 }
 
 .nav-svg {
-    width: 44px;
-    height: 44px;
+    width: 32px;
+    height: 32px;
     stroke-linecap: round;
     stroke-linejoin: round;
     transition: filter 0.3s ease;
@@ -122,15 +122,15 @@ body {
         left: 6px;
         right: 6px;
         padding: 4px;
-        border-radius: 22px;
+        border-radius: 20px;
     }
     .nav-btn {
-        padding: 14px 2px;
+        padding: 10px 2px;
         gap: 4px;
     }
     .nav-svg {
-        width: 38px;
-        height: 38px;
+        width: 28px;
+        height: 28px;
     }
     .nav-label {
         font-size: 9px;
@@ -313,14 +313,14 @@ body {
 
 /* ── Sections ── */
 .section {
-    margin-bottom: 24px;
+    margin-bottom: 20px;
 }
 
 .section-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
 }
 
 .section-header h2 {
@@ -336,8 +336,8 @@ body {
     background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 16px;
-    margin-bottom: 10px;
+    padding: 14px;
+    margin-bottom: 8px;
     cursor: pointer;
     transition: all 0.2s;
     -webkit-tap-highlight-color: transparent;
@@ -352,25 +352,25 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 .card-title {
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
 }
 
 .card-subtitle {
-    font-size: 13px;
+    font-size: 12px;
     color: var(--text-secondary);
-    margin-top: 4px;
+    margin-top: 3px;
 }
 
 .card-meta {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-top: 10px;
+    gap: 10px;
+    margin-top: 6px;
     font-size: 12px;
     color: var(--text-secondary);
 }
@@ -378,7 +378,7 @@ body {
 .card-actions {
     display: flex;
     gap: 8px;
-    margin-top: 12px;
+    margin-top: 10px;
 }
 
 /* ── Status badges ── */

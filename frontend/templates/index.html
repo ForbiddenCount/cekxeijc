@@ -25,17 +25,9 @@
                 <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
                 <span class="nav-label">Промо</span>
             </button>
-            <button class="nav-btn" data-page="converter" onclick="showPage('converter')">
-                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                <span class="nav-label">Курс</span>
-            </button>
-            <button class="nav-btn" data-page="profile" onclick="showPage('profile')">
-                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1.08-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1.08 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-                <span class="nav-label">Профиль</span>
-            </button>
-            <button class="nav-btn" data-page="admin" onclick="showPage('admin')" id="adminNavBtn" style="display:none">
-                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                <span class="nav-label">Админ</span>
+            <button class="nav-btn" data-page="more" onclick="showPage('more')">
+                <svg class="nav-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+                <span class="nav-label">Ещё</span>
             </button>
         </nav>
 
@@ -106,38 +98,11 @@
             <div id="promosList" class="list"></div>
         </div>
 
-        <!-- Converter -->
-        <div class="page" id="page-converter">
-            <div class="header">
-                <h1>Конвертер USDT / RUB</h1>
-            </div>
-            <div class="converter-card">
-                <div class="rate-display">
-                    <span class="rate-label">Текущий курс:</span>
-                    <span class="rate-value" id="currentRate">—</span>
-                    <span class="rate-currency">RUB/USDT</span>
-                </div>
-                <div class="converter-inputs">
-                    <div class="input-group">
-                        <label>USDT</label>
-                        <input type="number" id="usdtInput" placeholder="0.00" oninput="convertCurrency('usdt')">
-                    </div>
-                    <div class="swap-icon" onclick="swapCurrency()">⇆</div>
-                    <div class="input-group">
-                        <label>RUB</label>
-                        <input type="number" id="rubInput" placeholder="0.00" oninput="convertCurrency('rub')">
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Profile -->
-        <div class="page" id="page-profile">
-            <div class="header">
-                <h1>Профиль</h1>
-            </div>
+        <!-- More (Profile + Converter + Admin) -->
+        <div class="page" id="page-more">
+            <!-- Profile Section -->
             <div class="profile-card" id="profileCard">
-                <div class="profile-avatar" id="profileAvatar"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg></div>
+                <div class="profile-avatar" id="profileAvatar"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg></div>
                 <div class="profile-name" id="profileName">—</div>
                 <div class="profile-username" id="profileUsername">—</div>
                 <div class="profile-stats">
@@ -155,38 +120,56 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Converter Section -->
+            <div class="section">
+                <div class="section-header"><h2>Конвертер USDT / RUB</h2></div>
+                <div class="converter-card">
+                    <div class="rate-display">
+                        <span class="rate-label">Курс:</span>
+                        <span class="rate-value" id="currentRate">—</span>
+                        <span class="rate-currency">RUB/USDT</span>
+                    </div>
+                    <div class="converter-inputs">
+                        <div class="input-group">
+                            <label>USDT</label>
+                            <input type="number" id="usdtInput" placeholder="0.00" oninput="convertCurrency('usdt')">
+                        </div>
+                        <div class="swap-icon" onclick="swapCurrency()">⇆</div>
+                        <div class="input-group">
+                            <label>RUB</label>
+                            <input type="number" id="rubInput" placeholder="0.00" oninput="convertCurrency('rub')">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notes Section -->
             <div class="section">
                 <div class="section-header"><h2>Все заметки</h2></div>
                 <div id="allNotesList" class="list"></div>
             </div>
-        </div>
 
-        <!-- Admin Panel -->
-        <div class="page" id="page-admin">
-            <div class="header">
-                <h1>Админ-панель</h1>
-            </div>
-            <div class="stats-grid" id="adminStatsGrid">
-                <div class="stat-card">
-                    <div class="stat-value" id="adminStatUsers">0</div>
-                    <div class="stat-label">Пользователей</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="adminStatAdvertisers">0</div>
-                    <div class="stat-label">Рекламодателей</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="adminStatPromos">0</div>
-                    <div class="stat-label">Промо всего</div>
-                </div>
-                <div class="stat-card accent">
-                    <div class="stat-value" id="adminStatDone">0</div>
-                    <div class="stat-label">Готово</div>
-                </div>
-            </div>
-            <div class="section">
-                <div class="section-header">
-                    <h2>Пользователи</h2>
+            <!-- Admin Section (hidden for non-admins) -->
+            <div class="section" id="adminSection" style="display:none">
+                <div class="section-header"><h2>Админ-панель</h2></div>
+                <div class="stats-grid" id="adminStatsGrid">
+                    <div class="stat-card">
+                        <div class="stat-value" id="adminStatUsers">0</div>
+                        <div class="stat-label">Пользователей</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="adminStatAdvertisers">0</div>
+                        <div class="stat-label">Рекламодателей</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="adminStatPromos">0</div>
+                        <div class="stat-label">Промо всего</div>
+                    </div>
+                    <div class="stat-card accent">
+                        <div class="stat-value" id="adminStatDone">0</div>
+                        <div class="stat-label">Готово</div>
+                    </div>
                 </div>
                 <div id="adminUsersList" class="list"></div>
             </div>
