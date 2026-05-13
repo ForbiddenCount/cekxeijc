@@ -21,17 +21,17 @@ function initParticles() {
 
     function createParticles() {
         particles = [];
-        const count = Math.floor((w * h) / 8000);
+        const count = Math.floor((w * h) / 6000);
         for (let i = 0; i < count; i++) {
             particles.push({
                 x: Math.random() * w,
                 y: Math.random() * h,
-                r: Math.random() * 2.5 + 0.5,
-                dx: (Math.random() - 0.5) * 0.25,
-                dy: (Math.random() - 0.5) * 0.25,
-                alpha: Math.random() * 0.5 + 0.15,
+                r: Math.random() * 3.5 + 0.8,
+                dx: (Math.random() - 0.5) * 0.3,
+                dy: (Math.random() - 0.5) * 0.3,
+                alpha: Math.random() * 0.55 + 0.2,
                 pulse: Math.random() * Math.PI * 2,
-                glow: Math.random() * 6 + 3,
+                glow: Math.random() * 10 + 5,
             });
         }
     }
@@ -154,7 +154,7 @@ async function loadDashboard() {
 
         const container = document.getElementById("upcomingDeadlines");
         if (upcoming.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">◇</div><div class="empty-text">Нет активных дедлайнов</div></div>';
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">📅</div><div class="empty-text">Нет активных дедлайнов</div></div>';
         } else {
             container.innerHTML = upcoming.map((p) => {
                 const dl = new Date(p.deadline);
@@ -185,7 +185,7 @@ async function loadDashboard() {
         const reminders = await api("/api/reminders");
         const container = document.getElementById("remindersList");
         if (reminders.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">○</div><div class="empty-text">Нет напоминаний</div></div>';
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔔</div><div class="empty-text">Нет напоминаний</div></div>';
         } else {
             container.innerHTML = reminders.map((r) => `
                 <div class="card">
@@ -211,7 +211,7 @@ async function loadAdvertisers() {
         advertisers = await api("/api/advertisers");
         const container = document.getElementById("advertisersList");
         if (advertisers.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">◎</div><div class="empty-text">Нет рекламодателей.<br>Нажмите + Добавить</div></div>';
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">👤</div><div class="empty-text">Нет рекламодателей.<br>Нажмите + Добавить</div></div>';
         } else {
             container.innerHTML = advertisers.map((a) => `
                 <div class="card" onclick="showAdvertiserDetail(${a.id})">
@@ -336,7 +336,7 @@ function renderPromos() {
 
     const container = document.getElementById("promosList");
     if (filtered.length === 0) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-icon">◇</div><div class="empty-text">Нет промо-ссылок.<br>Нажмите + Добавить</div></div>';
+        container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔗</div><div class="empty-text">Нет промо-ссылок.<br>Нажмите + Добавить</div></div>';
         return;
     }
 
@@ -356,9 +356,9 @@ function renderPromos() {
                 <div class="card-header">
                     <span class="card-title">${esc(p.name)}</span>
                     <select class="status-select ${p.status}" onchange="event.stopPropagation(); changePromoStatus(${p.id}, this.value)" onclick="event.stopPropagation()">
-                        <option value="not_ready" ${p.status === "not_ready" ? "selected" : ""}>— Не готово</option>
-                        <option value="in_progress" ${p.status === "in_progress" ? "selected" : ""}>○ В процессе</option>
-                        <option value="done" ${p.status === "done" ? "selected" : ""}>● Готово</option>
+                        <option value="not_ready" ${p.status === "not_ready" ? "selected" : ""}>⏳ Не готово</option>
+                        <option value="in_progress" ${p.status === "in_progress" ? "selected" : ""}>🔄 В процессе</option>
+                        <option value="done" ${p.status === "done" ? "selected" : ""}>✅ Готово</option>
                     </select>
                 </div>
                 <div class="card-subtitle">${esc(p.advertiser_name || "—")}</div>
@@ -403,9 +403,9 @@ function showAddPromo(existing = null) {
         <div class="input-group">
             <label>Статус</label>
             <select id="promoStatus">
-                <option value="not_ready" ${existing?.status === "not_ready" ? "selected" : ""}>— Не готово</option>
-                <option value="in_progress" ${existing?.status === "in_progress" ? "selected" : ""}>○ В процессе</option>
-                <option value="done" ${existing?.status === "done" ? "selected" : ""}>● Готово</option>
+                <option value="not_ready" ${existing?.status === "not_ready" ? "selected" : ""}>⏳ Не готово</option>
+                <option value="in_progress" ${existing?.status === "in_progress" ? "selected" : ""}>🔄 В процессе</option>
+                <option value="done" ${existing?.status === "done" ? "selected" : ""}>✅ Готово</option>
             </select>
         </div>
         <div class="input-group">
@@ -666,7 +666,7 @@ async function loadProfile() {
         const notes = await api("/api/notes");
         const container = document.getElementById("allNotesList");
         if (notes.length === 0) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">—</div><div class="empty-text">Нет заметок</div></div>';
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">📝</div><div class="empty-text">Нет заметок</div></div>';
         } else {
             container.innerHTML = notes.map((n) => `
                 <div class="note-item">
@@ -702,9 +702,9 @@ function esc(str) {
 
 function statusLabel(status) {
     switch (status) {
-        case "done": return "● Готово";
-        case "in_progress": return "○ В процессе";
-        default: return "— Не готово";
+        case "done": return "✅ Готово";
+        case "in_progress": return "🔄 В процессе";
+        default: return "⏳ Не готово";
     }
 }
 
@@ -725,7 +725,7 @@ async function loadAdminPanel() {
         const users = await api("/api/admin/users");
         const container = document.getElementById("adminUsersList");
         if (!users.length) {
-            container.innerHTML = '<div class="empty-state"><div class="empty-icon">◎</div><div class="empty-text">Нет пользователей</div></div>';
+            container.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">Нет пользователей</div></div>';
             return;
         }
         container.innerHTML = users.map(u => `
@@ -733,7 +733,7 @@ async function loadAdminPanel() {
                 <div class="card-header">
                     <div class="card-title">${esc(u.first_name || "")} ${esc(u.last_name || "")}</div>
                     <div class="card-actions">
-                        <button class="btn-icon" onclick="adminViewUser(${u.telegram_id})">◇</button>
+                        <button class="btn-icon" onclick="adminViewUser(${u.telegram_id})">👁</button>
                         <button class="btn-icon danger" onclick="adminDeleteUser(${u.telegram_id})">✕</button>
                     </div>
                 </div>
