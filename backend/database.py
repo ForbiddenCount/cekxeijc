@@ -1,0 +1,79 @@
+import aiosqlite
+import os
+
+DB_PATH = os.getenv("DB_PATH", "data.db")
+
+
+async def get_db():
+    db = await aiosqlite.connect(DB_PATH)
+    db.row_factory = aiosqlite.Row
+    try:
+        yield db
+    finally:
+        await db.close()
+
+
+async def init_db():
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.executescript("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY,
+                telegram_id INTEGER UNIQUE NOT NULL,
+                username TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                language TEXT DEFAULT 'ru',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS advertisers (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                username TEXT,
+                link TEXT,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(telegram_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS promos (
+                id INTEGER PRIMARY KEY,
+                advertiser_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                link TEXT,
+                price_usdt REAL,
+                status TEXT DEFAULT 'not_ready',
+                deadline TIMESTAMP,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (advertiser_id) REFERENCES advertisers(id),
+                FOREIGN KEY (user_id) REFERENCES users(telegram_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS notes (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                promo_id INTEGER,
+                advertiser_id INTEGER,
+                content TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(telegram_id),
+                FOREIGN KEY (promo_id) REFERENCES promos(id),
+                FOREIGN KEY (advertiser_id) REFERENCES advertisers(id)
+            );
+
+            CREATE TABLE IF NOT EXISTS reminders (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                promo_id INTEGER,
+                remind_at TIMESTAMP NOT NULL,
+                message TEXT,
+                sent INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(telegram_id),
+                FOREIGN KEY (promo_id) REFERENCES promos(id)
+            );
+        """)
+        await db.commit()

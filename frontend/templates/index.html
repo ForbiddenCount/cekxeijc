@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ad Manager</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Navigation -->
+        <nav class="bottom-nav" id="bottomNav">
+            <button class="nav-btn active" data-page="dashboard" onclick="showPage('dashboard')">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">Главная</span>
+            </button>
+            <button class="nav-btn" data-page="advertisers" onclick="showPage('advertisers')">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Рекламодатели</span>
+            </button>
+            <button class="nav-btn" data-page="promos" onclick="showPage('promos')">
+                <span class="nav-icon">🔗</span>
+                <span class="nav-label">Промо</span>
+            </button>
+            <button class="nav-btn" data-page="converter" onclick="showPage('converter')">
+                <span class="nav-icon">💱</span>
+                <span class="nav-label">Курс</span>
+            </button>
+            <button class="nav-btn" data-page="profile" onclick="showPage('profile')">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-label">Профиль</span>
+            </button>
+        </nav>
+
+        <!-- Dashboard -->
+        <div class="page active" id="page-dashboard">
+            <div class="header">
+                <h1>📊 Дашборд</h1>
+            </div>
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card">
+                    <div class="stat-value" id="statAdvertisers">0</div>
+                    <div class="stat-label">Рекламодателей</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statPromos">0</div>
+                    <div class="stat-label">Промо всего</div>
+                </div>
+                <div class="stat-card accent">
+                    <div class="stat-value" id="statDone">0</div>
+                    <div class="stat-label">Готово</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="stat-value" id="statPending">0</div>
+                    <div class="stat-label">В процессе</div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-header">
+                    <h2>⏰ Ближайшие дедлайны</h2>
+                </div>
+                <div id="upcomingDeadlines" class="list"></div>
+            </div>
+            <div class="section">
+                <div class="section-header">
+                    <h2>🔔 Напоминания</h2>
+                    <button class="btn-icon" onclick="showAddReminder()">＋</button>
+                </div>
+                <div id="remindersList" class="list"></div>
+            </div>
+        </div>
+
+        <!-- Advertisers -->
+        <div class="page" id="page-advertisers">
+            <div class="header">
+                <h1>👤 Рекламодатели</h1>
+                <button class="btn-primary" onclick="showAddAdvertiser()">+ Добавить</button>
+            </div>
+            <div id="advertisersList" class="list"></div>
+        </div>
+
+        <!-- Promos -->
+        <div class="page" id="page-promos">
+            <div class="header">
+                <h1>🔗 Промо</h1>
+                <button class="btn-primary" onclick="showAddPromo()">+ Добавить</button>
+            </div>
+            <div class="filter-bar">
+                <select id="promoFilterAdvertiser" onchange="loadPromos()">
+                    <option value="">Все рекламодатели</option>
+                </select>
+                <select id="promoFilterStatus" onchange="filterPromos()">
+                    <option value="">Все статусы</option>
+                    <option value="not_ready">❌ Не готово</option>
+                    <option value="in_progress">⏳ В процессе</option>
+                    <option value="done">✅ Готово</option>
+                </select>
+            </div>
+            <div id="promosList" class="list"></div>
+        </div>
+
+        <!-- Converter -->
+        <div class="page" id="page-converter">
+            <div class="header">
+                <h1>💱 Конвертер USDT/RUB</h1>
+            </div>
+            <div class="converter-card">
+                <div class="rate-display">
+                    <span class="rate-label">Текущий курс:</span>
+                    <span class="rate-value" id="currentRate">—</span>
+                    <span class="rate-currency">RUB/USDT</span>
+                </div>
+                <div class="converter-inputs">
+                    <div class="input-group">
+                        <label>USDT</label>
+                        <input type="number" id="usdtInput" placeholder="0.00" oninput="convertCurrency('usdt')">
+                    </div>
+                    <div class="swap-icon" onclick="swapCurrency()">⇄</div>
+                    <div class="input-group">
+                        <label>RUB</label>
+                        <input type="number" id="rubInput" placeholder="0.00" oninput="convertCurrency('rub')">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Profile -->
+        <div class="page" id="page-profile">
+            <div class="header">
+                <h1>⚙️ Профиль</h1>
+            </div>
+            <div class="profile-card" id="profileCard">
+                <div class="profile-avatar" id="profileAvatar">👤</div>
+                <div class="profile-name" id="profileName">—</div>
+                <div class="profile-username" id="profileUsername">—</div>
+                <div class="profile-stats">
+                    <div class="profile-stat">
+                        <div class="profile-stat-value" id="profileAdvCount">0</div>
+                        <div class="profile-stat-label">Рекламодателей</div>
+                    </div>
+                    <div class="profile-stat">
+                        <div class="profile-stat-value" id="profilePromoCount">0</div>
+                        <div class="profile-stat-label">Промо</div>
+                    </div>
+                    <div class="profile-stat">
+                        <div class="profile-stat-value" id="profileDoneCount">0</div>
+                        <div class="profile-stat-label">Выполнено</div>
+                    </div>
+                </div>
+            </div>
+            <div class="section">
+                <div class="section-header"><h2>📝 Все заметки</h2></div>
+                <div id="allNotesList" class="list"></div>
+            </div>
+        </div>
+
+        <!-- Modals -->
+        <div class="modal" id="modal">
+            <div class="modal-backdrop" onclick="closeModal()"></div>
+            <div class="modal-content" id="modalContent"></div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
