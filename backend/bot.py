@@ -22,7 +22,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [
             [
                 InlineKeyboardButton(
-                    "📊 Открыть менеджер",
+                    "PROMO",
                     web_app=WebAppInfo(url=WEBAPP_URL),
                 )
             ]
