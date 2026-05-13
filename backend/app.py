@@ -552,7 +552,7 @@ async def delete_template(template_id: int, user=Depends(get_current_user), db=D
     return {"ok": True}
 
 
-# ── TikTok sound info ──
+# ── TikTok info ──
 
 @app.post("/api/tiktok-sound")
 async def tiktok_sound_info(request: Request):
@@ -579,6 +579,34 @@ async def tiktok_sound_info(request: Request):
             return {"name": name, "author": author, "title": title, "description": description}
     except Exception as e:
         return {"name": "", "author": "", "title": "", "description": "", "error": str(e)}
+
+
+@app.post("/api/tiktok-user")
+async def tiktok_user_info(request: Request):
+    data = await request.json()
+    username = data.get("username", "").strip().lstrip("@")
+    if not username:
+        raise HTTPException(400, "Username required")
+    url = f"https://www.tiktok.com/@{username}"
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=True) as client:
+            resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"})
+            html = resp.text
+            title_match = re.search(r'<title[^>]*>([^<]+)</title>', html, re.IGNORECASE)
+            title = title_match.group(1).strip() if title_match else ""
+            display_name = ""
+            if title:
+                parts = title.split("(")
+                display_name = parts[0].strip()
+                if display_name.startswith("@"):
+                    display_name = ""
+            desc_match = re.search(r'<meta[^>]*name=["\']description["\'][^>]*content=["\']([^"\']+)["\']', html, re.IGNORECASE)
+            bio = desc_match.group(1).strip() if desc_match else ""
+            followers_match = re.search(r'(\d+[\.\d]*[KkMm]?)\s*Followers', html)
+            followers = followers_match.group(1) if followers_match else ""
+            return {"username": username, "display_name": display_name, "bio": bio, "followers": followers, "url": url}
+    except Exception as e:
+        return {"username": username, "display_name": "", "bio": "", "followers": "", "url": url, "error": str(e)}
 
 
 # ── Admin Panel ──

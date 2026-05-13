@@ -440,7 +440,11 @@ function showAddPromo(existing = null) {
         </div>
         <div class="input-group">
             <label>Рекламодатель</label>
-            <input type="text" id="promoAdvertiser" value="${esc(existing?.advertiser_name || "")}" placeholder="Имя / @username (необязательно)">
+            <div style="display:flex;gap:6px;">
+                <input type="text" id="promoAdvertiser" value="${esc(existing?.advertiser_name || "")}" placeholder="@username TikTok" style="flex:1;">
+                <button class="btn-primary btn-sm" onclick="lookupTikTokUser()" style="width:auto;padding:10px 12px;font-size:11px;">Найти</button>
+            </div>
+            <div id="tiktokUserStatus" style="font-size:11px;color:var(--text-secondary);margin-top:4px;"></div>
         </div>
         <div class="input-group">
             <label>Название промо</label>
@@ -501,6 +505,30 @@ async function fetchTikTokInfo() {
         if (status) status.textContent = data.name ? `Найдено: ${data.name}` : "Инфо не найдена";
     } catch (e) {
         if (status) status.textContent = "Ошибка загрузки";
+    }
+}
+
+async function lookupTikTokUser() {
+    const input = document.getElementById("promoAdvertiser");
+    const status = document.getElementById("tiktokUserStatus");
+    const username = input?.value.trim();
+    if (!username) {
+        if (status) status.textContent = "Введите @username";
+        return;
+    }
+    if (status) status.textContent = "Поиск...";
+    try {
+        const data = await api("/api/tiktok-user", { method: "POST", body: JSON.stringify({ username }) });
+        let info = `@${data.username}`;
+        if (data.display_name) {
+            input.value = `${data.display_name} (@${data.username})`;
+            info += ` — ${data.display_name}`;
+        }
+        if (data.followers) info += ` · ${data.followers} подписчиков`;
+        if (data.bio) info += `\n${data.bio.substring(0, 80)}`;
+        if (status) status.textContent = info;
+    } catch (e) {
+        if (status) status.textContent = "Пользователь не найден";
     }
 }
 
